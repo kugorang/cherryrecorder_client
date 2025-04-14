@@ -1,8 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'app.dart';
+import 'features/map_view/presentation/providers/map_view_model.dart';
+import 'features/place_details/presentation/providers/place_detail_view_model.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // flutter_native_splash는 제거했으므로 관련 코드 주석 처리 또는 삭제
+  // WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  // FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+
+  // 초기화 작업 수행 (필요시)
+  // await initialization();
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => MapViewModel()),
+        ChangeNotifierProvider(create: (_) => PlaceDetailViewModel()),
+      ],
+      child: const CherryRecorderApp(),
+    ),
+  );
 }
+
+// flutter_native_splash는 제거했으므로 관련 코드 주석 처리 또는 삭제
+// Future<void> initialization() async {
+//   // 필요한 초기화 작업 수행 (예: 권한 확인)
+//   await Future.delayed(const Duration(seconds: 2)); // 최소 스플래시 표시 시간
+//   FlutterNativeSplash.remove();
+// }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

@@ -15,6 +15,16 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
+## 환경 설정
+
+### Google Maps API 키 설정
+
+1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트를 생성하고 Maps API 키를 발급받으세요.
+2. `android/local.properties.example` 파일을 `android/local.properties`로 복사하세요.
+3. `local.properties` 파일에서 `MAPS_API_KEY` 값을 발급받은 API 키로 교체하세요.
+
+⚠️ 주의: `local.properties` 파일은 절대로 버전 관리 시스템에 커밋하지 마세요!
+
 ## 폴더 구조
 
 cherryrecorder_client/
