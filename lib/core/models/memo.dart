@@ -91,7 +91,7 @@ class Memo {
     );
   }
 
-  // SQLite 호환 메서드 - 레거시 지원
+  // SQLite 와 호환되는 toMap 메서드 - 레거시 지원
   Map<String, dynamic> toMap() {
     return {
       DatabaseHelper.columnId: id,
@@ -100,16 +100,30 @@ class Memo {
       DatabaseHelper.columnTags: tags,
       DatabaseHelper.columnCreatedAt: createdAt.toIso8601String(),
       DatabaseHelper.columnUpdatedAt: updatedAt.toIso8601String(),
+      'latitude': latitude,
+      'longitude': longitude,
     };
   }
 
   // SQLite 호환 메서드 - 레거시 지원
   factory Memo.fromMap(Map<String, dynamic> map) {
+    // 추가 필드 처리 - 없을 경우 기본값 사용
+    double latitude = 0.0;
+    double longitude = 0.0;
+    
+    // latitude, longitude 필드가 있으면 사용
+    if (map.containsKey('latitude')) {
+      latitude = (map['latitude'] as num).toDouble();
+    }
+    if (map.containsKey('longitude')) {
+      longitude = (map['longitude'] as num).toDouble();
+    }
+    
     return Memo(
       id: map[DatabaseHelper.columnId] as String?,
       placeId: map[DatabaseHelper.columnPlaceId] as String,
-      latitude: 0.0,
-      longitude: 0.0,
+      latitude: latitude,
+      longitude: longitude,
       content: map[DatabaseHelper.columnContent] as String,
       tags: map[DatabaseHelper.columnTags] as String?,
       createdAt:
