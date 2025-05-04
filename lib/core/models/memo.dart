@@ -13,20 +13,28 @@ class Memo {
   final String placeId;
 
   @HiveField(2)
-  final String content;
+  final double latitude;
 
   @HiveField(3)
-  final String? tags;
+  final double longitude;
 
   @HiveField(4)
-  final DateTime createdAt;
+  final String content;
 
   @HiveField(5)
+  final String? tags;
+
+  @HiveField(6)
+  final DateTime createdAt;
+
+  @HiveField(7)
   final DateTime updatedAt;
 
   Memo({
     String? id,
     required this.placeId,
+    required this.latitude,
+    required this.longitude,
     required this.content,
     this.tags,
     DateTime? createdAt,
@@ -38,6 +46,8 @@ class Memo {
   Memo copyWith({
     String? id,
     String? placeId,
+    double? latitude,
+    double? longitude,
     String? content,
     String? tags,
     DateTime? createdAt,
@@ -46,6 +56,8 @@ class Memo {
     return Memo(
       id: id ?? this.id,
       placeId: placeId ?? this.placeId,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       content: content ?? this.content,
       tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
@@ -57,6 +69,8 @@ class Memo {
     return {
       'id': id,
       'placeId': placeId,
+      'latitude': latitude,
+      'longitude': longitude,
       'content': content,
       'tags': tags,
       'createdAt': createdAt.toIso8601String(),
@@ -68,6 +82,8 @@ class Memo {
     return Memo(
       id: json['id'] as String?,
       placeId: json['placeId'] as String,
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
       content: json['content'] as String,
       tags: json['tags'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
@@ -92,6 +108,8 @@ class Memo {
     return Memo(
       id: map[DatabaseHelper.columnId] as String?,
       placeId: map[DatabaseHelper.columnPlaceId] as String,
+      latitude: 0.0,
+      longitude: 0.0,
       content: map[DatabaseHelper.columnContent] as String,
       tags: map[DatabaseHelper.columnTags] as String?,
       createdAt:
@@ -107,6 +125,6 @@ class Memo {
 
   @override
   String toString() {
-    return 'Memo{id: $id, placeId: $placeId, content: $content, tags: $tags, createdAt: $createdAt, updatedAt: $updatedAt}';
+    return 'Memo{id: $id, placeId: $placeId, latitude: $latitude, longitude: $longitude, content: $content, tags: $tags, createdAt: $createdAt, updatedAt: $updatedAt}';
   }
 }

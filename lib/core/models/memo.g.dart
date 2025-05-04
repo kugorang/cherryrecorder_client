@@ -19,28 +19,34 @@ class MemoAdapter extends TypeAdapter<Memo> {
     return Memo(
       id: fields[0] as String?,
       placeId: fields[1] as String,
-      content: fields[2] as String,
-      tags: fields[3] as String?,
-      createdAt: fields[4] as DateTime?,
-      updatedAt: fields[5] as DateTime?,
+      latitude: fields[2] as double,
+      longitude: fields[3] as double,
+      content: fields[4] as String,
+      tags: fields[5] as String?,
+      createdAt: fields[6] as DateTime?,
+      updatedAt: fields[7] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Memo obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.placeId)
       ..writeByte(2)
-      ..write(obj.content)
+      ..write(obj.latitude)
       ..writeByte(3)
-      ..write(obj.tags)
+      ..write(obj.longitude)
       ..writeByte(4)
-      ..write(obj.createdAt)
+      ..write(obj.content)
       ..writeByte(5)
+      ..write(obj.tags)
+      ..writeByte(6)
+      ..write(obj.createdAt)
+      ..writeByte(7)
       ..write(obj.updatedAt);
   }
 
