@@ -1,21 +1,39 @@
 import '../database/database_helper.dart';
+import 'package:hive/hive.dart';
+import 'package:uuid/uuid.dart';
 
+part 'memo.g.dart'; // Hive 코드 생성을 위한 부분 파일
+
+@HiveType(typeId: 1)
 class Memo {
-  final String? id;
+  @HiveField(0)
+  final String id;
+
+  @HiveField(1)
   final String placeId;
+
+  @HiveField(2)
   final String content;
+
+  @HiveField(3)
   final String? tags;
+
+  @HiveField(4)
   final DateTime createdAt;
+
+  @HiveField(5)
   final DateTime updatedAt;
 
-  const Memo({
-    this.id,
+  Memo({
+    String? id,
     required this.placeId,
     required this.content,
     this.tags,
-    required this.createdAt,
-    required this.updatedAt,
-  });
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) : id = id ?? const Uuid().v4(),
+       createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
   Memo copyWith({
     String? id,
@@ -57,15 +75,19 @@ class Memo {
     );
   }
 
+  // SQLite 호환 메서드 - 레거시 지원
   Map<String, dynamic> toMap() {
     return {
-      if (id != null) DatabaseHelper.columnId: id,
+      DatabaseHelper.columnId: id,
       DatabaseHelper.columnPlaceId: placeId,
       DatabaseHelper.columnContent: content,
       DatabaseHelper.columnTags: tags,
+      DatabaseHelper.columnCreatedAt: createdAt.toIso8601String(),
+      DatabaseHelper.columnUpdatedAt: updatedAt.toIso8601String(),
     };
   }
 
+  // SQLite 호환 메서드 - 레거시 지원
   factory Memo.fromMap(Map<String, dynamic> map) {
     return Memo(
       id: map[DatabaseHelper.columnId] as String?,

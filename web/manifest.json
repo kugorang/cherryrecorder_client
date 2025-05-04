@@ -1,11 +1,11 @@
 {
-    "name": "cherryrecorder_client",
-    "short_name": "cherryrecorder_client",
+    "name": "체리 레코더",
+    "short_name": "체리 레코더",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#DE3B3B",
+    "theme_color": "#DE3B3B",
+    "description": "나만의 혜택 기록장",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

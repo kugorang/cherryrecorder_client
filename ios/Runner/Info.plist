@@ -22,8 +22,9 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- 클라이언트용 Google Maps API 키 (xcconfig에서 주입됨) -->
 	<key>GoogleMapsAPIKey</key>
-    <string>$(GOOGLE_MAPS_API_KEY)</string>
+    <string>$(GOOGLE_MAPS_API_KEY)</string> 
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>

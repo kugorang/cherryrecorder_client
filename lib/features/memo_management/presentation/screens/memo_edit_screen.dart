@@ -126,4 +126,3 @@ class _MemoEditScreenState extends State<MemoEditScreen> {
     );
   }
 }
-

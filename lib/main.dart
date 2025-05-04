@@ -1,149 +1,111 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'app.dart';
-import 'features/map_view/presentation/providers/map_view_model.dart';
 import 'features/place_details/presentation/providers/place_detail_view_model.dart';
+import 'features/chat/presentation/providers/chat_view_model.dart';
+import 'features/map/presentation/providers/map_view_model.dart'; // MapViewModel 임포트
+// dotenv import 제거
+import 'app.dart'; // CherryRecorderApp 임포트
+import 'package:logger/logger.dart';
+import 'core/services/google_maps_service.dart'; // GoogleMapsService 임포트
+// import 'package:flutter/services.dart'; // 앱 라이프사이클 불필요
+// import 'core/services/storage_service.dart'; // StorageService 임포트 불필요
 
-void main() async {
+final logger = Logger();
+
+// --dart-define=APP_ENV=dev 또는 --dart-define=APP_ENV=prod 로 빌드 시 주입
+const String environment = String.fromEnvironment(
+  'APP_ENV',
+  defaultValue: 'dev',
+);
+
+/// 애플리케이션 메인 진입점 (단일 진입점)
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // flutter_native_splash는 제거했으므로 관련 코드 주석 처리 또는 삭제
-  // WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  // FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // 초기화 작업 수행 (필요시)
-  // await initialization();
+  // // 앱 종료 시 리소스 정리 (Hive 박스 닫기) - 더 이상 필요 없음
+  // SystemChannels.lifecycle.setMessageHandler((msg) async {
+  //   if (msg == AppLifecycleState.detached.toString()) {
+  //     await StorageService.instance.closeBoxes();
+  //     logger.i('앱 종료: 리소스 정리 완료');
+  //   }
+  //   return null;
+  // });
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => MapViewModel()),
-        ChangeNotifierProvider(create: (_) => PlaceDetailViewModel()),
-      ],
-      child: const CherryRecorderApp(),
-    ),
+  // --- 환경 변수 읽기 (--dart-define 사용) ---
+  const webApiBaseUrl = String.fromEnvironment(
+    'WEB_API_BASE_URL',
+    defaultValue: 'http://localhost:8080',
   );
-}
+  const androidApiBaseUrl = String.fromEnvironment(
+    'ANDROID_API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:8080',
+  );
+  const webMapsApiKey = String.fromEnvironment('WEB_MAPS_API_KEY');
+  // Android API 키는 네이티브에서 처리
 
-// flutter_native_splash는 제거했으므로 관련 코드 주석 처리 또는 삭제
-// Future<void> initialization() async {
-//   // 필요한 초기화 작업 수행 (예: 권한 확인)
-//   await Future.delayed(const Duration(seconds: 2)); // 최소 스플래시 표시 시간
-//   FlutterNativeSplash.remove();
-// }
+  // dotenv 로드 로직 완전 제거
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  try {
+    if (kIsWeb && webMapsApiKey.isEmpty) {
+      logger.w('웹 환경에서 WEB_MAPS_API_KEY가 --dart-define으로 전달되지 않았습니다.');
+      // 치명적 오류로 간주하고 앱 실행 중단 또는 기본값 사용 결정 필요
+      // runApp(ErrorApp('웹 API 키가 설정되지 않았습니다.'));
+      // return;
+    }
 
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    // --- GoogleMapsService 초기화 ---
+    final mapsService = GoogleMapsService();
+    await mapsService.initialize(
+      webApiBaseUrl: webApiBaseUrl,
+      androidApiBaseUrl: androidApiBaseUrl,
+      webMapsApiKey: webMapsApiKey,
     );
-  }
-}
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+    logger.i('$environment 환경에서 앱 실행 중');
+    logger.i('API Base URL (Web): ${mapsService.getServerUrl(isWeb: true)}');
+    logger.i(
+      'API Base URL (Android): ${mapsService.getServerUrl(isWeb: false)}',
+    );
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+    // 앱 실행 (Provider 설정과 함께)
+    runApp(
+      MultiProvider(
+        providers: [
+          Provider<GoogleMapsService>.value(value: mapsService),
+          ChangeNotifierProvider(
+            create: (_) => MapViewModel(),
+          ), // MapViewModel 추가
+          ChangeNotifierProvider(create: (_) => PlaceDetailViewModel()),
+          ChangeNotifierProvider(create: (_) => ChatViewModel()),
+        ],
+        child: const CherryRecorderApp(),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+    );
+  } catch (e, stackTrace) {
+    logger.e('앱 초기화 중 오류 발생 ($environment)', error: e, stackTrace: stackTrace);
+    runApp(
+      MaterialApp(
+        // 간단한 오류 표시 앱
+        home: Scaffold(
+          body: Center(child: Text('앱 초기화 오류 ($environment): $e')),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
+
+// // 간단한 오류 표시 앱 (예시)
+// class ErrorApp extends StatelessWidget {
+//   final String message;
+//   const ErrorApp(this.message, {super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       home: Scaffold(
+//         body: Center(child: Text(message)),
+//       ),
+//     );
+//   }
+// }
