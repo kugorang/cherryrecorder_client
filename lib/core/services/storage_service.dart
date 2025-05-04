@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 // import '../models/memo.dart'; // 기존 상대 경로 주석 처리
-import 'package:cherryrecorder_client/features/memo/models/memo.dart'; // 패키지 경로 사용
+// import 'package:cherryrecorder_client/features/memo/models/memo.dart'; // 잘못된 경로 주석 처리
+import 'package:cherryrecorder_client/core/models/memo.dart'; // 올바른 패키지 경로 사용
 import 'package:logger/logger.dart';
 // memo_adapter.dart 대신 memo.dart에서 자동 생성된 어댑터 사용
 
@@ -293,6 +294,34 @@ class StorageService {
       return result;
     } catch (e) {
       _logger.e('메모 검색 중 오류:', error: e);
+      return []; // 오류 시 빈 목록 반환
+    }
+  }
+
+  /// 특정 장소 ID에 해당하는 메모 목록 가져오기
+  ///
+  /// [placeId]가 일치하는 메모들을 찾아 최신순으로 정렬하여 반환한다.
+  ///
+  /// * [placeId]: 찾으려는 장소의 고유 식별자.
+  Future<List<Memo>> getMemosByPlaceId(String placeId) async {
+    await _ensureBoxOpen();
+    try {
+      final box = _memoBox!;
+      _logger.d('getMemosByPlaceId 시작 (placeId: $placeId)');
+      await _logBoxContents("getMemosByPlaceId 시작 시점");
+
+      // placeId로 필터링
+      final allItems = box.values.toList();
+      final result =
+          allItems.where((memo) => memo.placeId == placeId).toList()
+            ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt)); // 최신순 정렬
+
+      _logger.d(
+        'getMemosByPlaceId 완료: ${result.length}개의 메모 로드됨 (placeId: $placeId)',
+      );
+      return result;
+    } catch (e) {
+      _logger.e('특정 장소 ID 메모 조회 중 오류 (placeId: $placeId):', error: e);
       return []; // 오류 시 빈 목록 반환
     }
   }
