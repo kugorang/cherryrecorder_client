@@ -285,8 +285,7 @@ iOSInjectionProject/
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json.example  # Keep example file
+!.vscode/*.json.example  # Keep example files only
 !.vscode/extensions.json
 *.code-workspace
 
@@ -452,3 +451,10 @@ fabric.properties
 
 # Contents
 android/secrets.properties
+
+# Python files
+pyproject.toml
+*.lock
+
+# Flutter DevTools
+devtools_options.yaml

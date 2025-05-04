@@ -1,0 +1,72 @@
+// .vscode/tasks.json.example
+// 
+// 이 파일은 체리레코더 개발을 위한 VSCode 태스크 설정 예제입니다.
+// 사용하려면:
+// 1. 이 파일을 'tasks.json'으로 복사하세요.
+// 2. API 키와 서버 URL을 실제 값으로 교체하세요.
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Flutter Build Web (dev)", // 개발용 빌드 작업 레이블
+            "type": "shell", // 셸 명령 실행
+            "command": "flutter build web --debug --dart-define=FLUTTER_WEB_RENDERER=html --dart-define=APP_ENV=dev --dart-define=WEB_MAPS_API_KEY=YOUR_MAPS_API_KEY_HERE --dart-define=WEB_API_BASE_URL=http://localhost:8080 --dart-define=CHAT_SERVER_IP=localhost", // API 키를 실제 키로 교체해야 함
+            "group": "build", // 빌드 그룹으로 지정
+            "presentation": {
+                "reveal": "always", // 작업 실행 시 터미널 패널 표시
+                "panel": "dedicated" // 전용 패널 사용
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Flutter Build Web (prod)", // 프로덕션용 빌드 작업 레이블
+            "type": "shell",
+            "command": "flutter build web --dart-define=FLUTTER_WEB_RENDERER=html --dart-define=APP_ENV=prod --dart-define=WEB_MAPS_API_KEY=YOUR_MAPS_API_KEY_HERE --dart-define=WEB_API_BASE_URL=YOUR_PRODUCTION_API_URL_HERE --dart-define=CHAT_SERVER_IP=YOUR_PRODUCTION_CHAT_SERVER_HERE", // API 키, URL 교체 필요
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Serve Web Build", // 빌드된 웹 앱 서빙 작업
+            "type": "shell",
+            "command": "cd build/web ; python -m http.server 8081", // PowerShell에서는 && 대신 ; 사용
+            "isBackground": true, // 백그라운드에서 실행
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "silent", // 조용히 실행
+                "panel": "dedicated"
+            }
+        },
+        // 복합 작업: 개발용 빌드 후 서빙
+        {
+            "label": "Build and Serve Web (dev)",
+            "dependsOrder": "sequence", // 순차 실행
+            "dependsOn": [
+                "Flutter Build Web (dev)", // 먼저 빌드
+                "Serve Web Build"         // 다음 서빙
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },
+        // 복합 작업: 프로덕션용 빌드 후 서빙
+        {
+            "label": "Build and Serve Web (prod)",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Flutter Build Web (prod)",
+                "Serve Web Build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        }
+    ]
+}
