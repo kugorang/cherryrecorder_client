@@ -2,11 +2,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
-// import '../models/memo.dart'; // 기존 상대 경로 주석 처리
-// import 'package:cherryrecorder_client/features/memo/models/memo.dart'; // 잘못된 경로 주석 처리
-import 'package:cherryrecorder_client/core/models/memo.dart'; // 올바른 패키지 경로 사용
+import 'package:cherryrecorder_client/core/models/memo.dart';
 import 'package:logger/logger.dart';
-// memo_adapter.dart 대신 memo.dart에서 자동 생성된 어댑터 사용
 
 /// 앱의 로컬 데이터 저장을 관리하는 서비스.
 ///
