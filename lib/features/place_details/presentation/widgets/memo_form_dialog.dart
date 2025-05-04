@@ -6,8 +6,16 @@ import '../providers/place_detail_view_model.dart';
 class MemoFormDialog extends StatefulWidget {
   final String placeId;
   final Memo? memoToEdit;
+  final double latitude;
+  final double longitude;
 
-  const MemoFormDialog({super.key, required this.placeId, this.memoToEdit});
+  const MemoFormDialog({
+    super.key,
+    required this.placeId,
+    this.memoToEdit,
+    required this.latitude,
+    required this.longitude,
+  });
 
   @override
   State<MemoFormDialog> createState() => _MemoFormDialogState();
@@ -76,11 +84,19 @@ class _MemoFormDialogState extends State<MemoFormDialog> {
               final navigator = Navigator.of(currentContext);
 
               final now = DateTime.now();
+              // 수정 시 기존 좌표 사용, 새 메모 시 전달받은 좌표 사용
+              final double memoLatitude =
+                  widget.memoToEdit?.latitude ?? widget.latitude;
+              final double memoLongitude =
+                  widget.memoToEdit?.longitude ?? widget.longitude;
+
               final memo = Memo(
                 id: widget.memoToEdit?.id,
                 placeId: widget.placeId,
+                latitude: memoLatitude, // 위도 추가
+                longitude: memoLongitude, // 경도 추가
                 content: _contentController.text.trim(),
-                createdAt: widget.memoToEdit?.createdAt,
+                createdAt: widget.memoToEdit?.createdAt, // 수정 시 기존 값 유지
                 updatedAt: now,
               );
 

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:logger/logger.dart';
 import 'package:cherryrecorder_client/core/services/storage_service.dart';
-import 'package:cherryrecorder_client/features/memo/models/memo.dart';
+// import 'package:cherryrecorder_client/features/memo/models/memo.dart'; // 잘못된 경로 주석 처리
+import 'package:cherryrecorder_client/core/models/memo.dart'; // 올바른 패키지 경로 사용
 
 /// 장소 상세 정보 및 관련 메모를 관리하는 ViewModel.
 ///
@@ -82,13 +83,7 @@ class PlaceDetailViewModel extends ChangeNotifier {
   /// 성공적으로 추가되면 메모 목록을 갱신하고 UI에 알린다.
   ///
   /// * [content]: 추가할 메모의 내용.
-  /// * [priority]: 메모의 우선순위 (선택 사항, 기본값: medium).
-  /// * [imagePaths]: 첨부 이미지 경로 리스트 (선택 사항).
-  Future<void> addMemo(
-    String content, {
-    MemoPriority priority = MemoPriority.medium,
-    List<String>? imagePaths,
-  }) async {
+  Future<void> addMemo(String content) async {
     if (_selectedPlace == null) {
       _logger.w('메모 추가 시도: 선택된 장소 없음');
       _errorMessage = '메모를 추가할 장소를 먼저 선택해주세요.';
@@ -101,12 +96,15 @@ class PlaceDetailViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 임시 placeId 생성 (추후 개선 필요)
+      final placeId =
+          '${_selectedPlace!.latitude}_${_selectedPlace!.longitude}';
+
       final newMemo = Memo(
-        content: content,
+        placeId: placeId,
         latitude: _selectedPlace!.latitude,
         longitude: _selectedPlace!.longitude,
-        priority: priority,
-        imagePaths: imagePaths,
+        content: content,
       );
       // StorageService.saveMemo는 Future<bool> 반환
       final success = await _storageService.saveMemo(newMemo);
@@ -134,7 +132,7 @@ class PlaceDetailViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      updatedMemo.updatedAt = DateTime.now();
+      // updatedMemo.updatedAt = DateTime.now(); // final 필드이므로 제거
       // StorageService.updateMemo는 Future<bool> 반환
       final success = await _storageService.updateMemo(updatedMemo);
       if (success) {

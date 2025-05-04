@@ -46,9 +46,14 @@ class _MemoEditScreenState extends State<MemoEditScreen> {
 
     try {
       final viewModel = context.read<PlaceDetailViewModel>();
+      final newLatitude = widget.existingMemo?.latitude ?? 0.0;
+      final newLongitude = widget.existingMemo?.longitude ?? 0.0;
+
       final memo = Memo(
         id: widget.existingMemo?.id,
         placeId: widget.placeId,
+        latitude: newLatitude,
+        longitude: newLongitude,
         content: _contentController.text.trim(),
         tags: _tagsController.text.trim(),
         createdAt: widget.existingMemo?.createdAt ?? DateTime.now(),

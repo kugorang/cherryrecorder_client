@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../../core/models/memo.dart';
+// import '../../../../core/models/memo.dart'; // 이 경로 사용
+// import '../../../../features/memo/models/memo.dart'; // 사용하지 않음
+import 'package:cherryrecorder_client/core/models/memo.dart'; // 패키지 경로 사용
 import '../../../../core/services/storage_service.dart'; // 추가
 import 'package:logger/logger.dart'; // 로거 추가
 
@@ -20,7 +22,7 @@ class PlaceDetailViewModel extends ChangeNotifier {
       notifyListeners();
 
       // 신규 스토리지 서비스 사용
-      _memos = await StorageService.instance.getMemos(placeId);
+      _memos = await StorageService.instance.getMemosByPlaceId(placeId);
     } catch (e) {
       _error = '메모를 불러오는 중 오류가 발생했습니다: $e';
       _logger.e('메모 로드 오류 (placeId: $placeId):', error: e);

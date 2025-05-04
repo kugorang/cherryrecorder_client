@@ -173,7 +173,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   void _showAddMemoDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => MemoFormDialog(placeId: widget.place.id),
+      builder:
+          (context) => MemoFormDialog(
+            placeId: widget.place.id,
+            latitude: widget.place.location.latitude, // 위도 전달
+            longitude: widget.place.location.longitude, // 경도 전달
+          ),
     );
   }
 
@@ -182,8 +187,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     showDialog(
       context: context,
       builder:
-          (context) =>
-              MemoFormDialog(placeId: widget.place.id, memoToEdit: memo),
+          (context) => MemoFormDialog(
+            placeId: widget.place.id,
+            memoToEdit: memo,
+            latitude:
+                widget.place.location.latitude, // 위도 전달 (수정 시에도 장소 좌표는 동일)
+            longitude: widget.place.location.longitude, // 경도 전달
+          ),
     );
   }
 
