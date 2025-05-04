@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:logger/logger.dart';
 import 'package:cherryrecorder_client/core/services/storage_service.dart';
-// import 'package:cherryrecorder_client/features/memo/models/memo.dart'; // 잘못된 경로 주석 처리
-import 'package:cherryrecorder_client/core/models/memo.dart'; // 올바른 패키지 경로 사용
+import 'package:cherryrecorder_client/core/models/memo.dart';
 
 /// 장소 상세 정보 및 관련 메모를 관리하는 ViewModel.
 ///

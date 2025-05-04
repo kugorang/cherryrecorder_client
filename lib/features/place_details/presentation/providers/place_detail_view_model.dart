@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-// import '../../../../core/models/memo.dart'; // 이 경로 사용
-// import '../../../../features/memo/models/memo.dart'; // 사용하지 않음
-import 'package:cherryrecorder_client/core/models/memo.dart'; // 패키지 경로 사용
-import '../../../../core/services/storage_service.dart'; // 추가
-import 'package:logger/logger.dart'; // 로거 추가
+import 'package:cherryrecorder_client/core/models/memo.dart';
+import '../../../../core/services/storage_service.dart';
+import 'package:logger/logger.dart';
 
 class PlaceDetailViewModel extends ChangeNotifier {
   List<Memo> _memos = [];
