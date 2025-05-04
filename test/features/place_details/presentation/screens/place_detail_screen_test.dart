@@ -29,6 +29,8 @@ void main() {
   final testMemo = Memo(
     id: 'memo1',
     placeId: testPlace.id,
+    latitude: testPlace.location.latitude,
+    longitude: testPlace.location.longitude,
     content: 'Test memo content',
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
