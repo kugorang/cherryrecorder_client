@@ -1,0 +1,49 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # 주 사용 브랜치로 변경 가능 (예: master)
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment: # 린터가 'github-pages' 값을 유효하지 않다고 표시할 수 있으나, GitHub Pages 배포를 위한 표준 환경 이름이다.
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable' # 또는 특정 Flutter 버전
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Web
+        run: |
+          flutter build web --release --base-href "/cherryrecorder_client/" \
+          --dart-define=APP_ENV=${{ vars.APP_ENV }} \
+          --dart-define=WEB_MAPS_API_KEY=${{ secrets.GH_PAGES_WEB_MAPS_API_KEY }} \
+          --dart-define=WEB_API_BASE_URL=${{ vars.WEB_API_BASE_URL }} \
+          --dart-define=CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }}
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4 
