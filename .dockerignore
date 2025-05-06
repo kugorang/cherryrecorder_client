@@ -1,0 +1,55 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+devtools_options.yaml
+
+# Flutter/Dart build artifacts and caches from host
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+*~
+*.swp
+
+# Test files
+test/
+
+# Documentation
+README.md
+doc/
+# LICENSE.txt # 주석 처리: 라이선스 파일은 이미지에 포함할지 여부에 따라 결정
+
+# Platform-specific directories (not needed for web build)
+android/
+ios/
+linux/
+macos/
+windows/
+
+# Python specific (if any in project root, good to ignore)
+.venv/
+.ruff_cache/
+pyproject.toml
+uv.lock
+
+# Dockerfile itself and this .dockerignore file
+Dockerfile
+Dockerfile.*
+.dockerignore 
