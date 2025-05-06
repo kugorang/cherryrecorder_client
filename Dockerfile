@@ -1,5 +1,5 @@
 # Stage 1: Build the Flutter web app
-FROM cirrusci/flutter:stable AS builder
+FROM cirrusci/flutter:beta AS builder
 
 # Define build arguments for dart-define and base_href
 ARG APP_ENV="prod" # Default value
