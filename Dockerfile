@@ -1,9 +1,9 @@
 # Stage 1: Build the Flutter web app
-FROM cirrusci/flutter:3.22.2 AS builder
+FROM cirrusci/flutter:stable AS builder
 
 # Define build arguments for dart-define and base_href
 ARG APP_ENV="prod" # Default value
-# ARG WEB_MAPS_API_KEY # 시크릿으로 대체되므로 주석 처리 또는 삭제
+ARG WEB_MAPS_API_KEY # 주석 해제 및 활성화
 ARG WEB_API_BASE_URL
 ARG CHAT_SERVER_IP
 ARG BASE_HREF="/cherryrecorder_client/" # Default base href
@@ -15,14 +15,13 @@ RUN flutter pub get
 
 COPY . .
 
-RUN --mount=type=secret,id=web_maps_api_key \
-    export WEB_MAPS_API_KEY=$(cat /run/secrets/web_maps_api_key) && \
-    echo "Building Flutter web with:" && \
+# 로컬 테스트를 위해 WEB_MAPS_API_KEY 관련 시크릿 마운트 로직을 제거하고 ARG를 직접 사용
+RUN echo "Building Flutter web with (local-debug configuration for WEB_MAPS_API_KEY):" && \
     echo "APP_ENV: ${APP_ENV}" && \
     echo "WEB_API_BASE_URL: ${WEB_API_BASE_URL}" && \
     echo "CHAT_SERVER_IP: ${CHAT_SERVER_IP}" && \
     echo "BASE_HREF: ${BASE_HREF}" && \
-    # WEB_MAPS_API_KEY는 이제 환경 변수로 설정됨 (로그에는 출력 안 함)
+    # WEB_MAPS_API_KEY는 ARG로 전달됨 (로그에는 값 출력 안 함)
     flutter build web --release --base-href "${BASE_HREF}" \
     --dart-define=APP_ENV=${APP_ENV} \
     --dart-define=WEB_MAPS_API_KEY=${WEB_MAPS_API_KEY} \
