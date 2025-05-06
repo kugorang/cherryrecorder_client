@@ -21,22 +21,28 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            common_code: &
+            # 공통 경로 목록에 대한 앵커 정의
+            # 이 키(_common_paths_def)는 필터 그룹 출력을 위해 사용되지 않음
+            _common_paths_def: &common_paths_list 
               - 'lib/**'
               - 'web/**'
               - 'assets/**'
               - 'pubspec.yaml'
               - 'pubspec.lock'
 
-            gh_pages:
-              - *common_code # YAML anchor for common paths
-              - '.github/workflows/ci.yml' # This workflow file
+            # gh_pages 필터 그룹
+            # 이 그룹의 변경 여부는 steps.filter.outputs.gh_pages 로 출력됨
+            gh_pages: 
+              - *common_paths_list # 공통 경로 목록 참조
+              - '.github/workflows/ci.yml' # 이 워크플로우 파일
 
-            docker:
-              - *common_code # YAML anchor for common paths
+            # docker 필터 그룹
+            # 이 그룹의 변경 여부는 steps.filter.outputs.docker 로 출력됨
+            docker: 
+              - *common_paths_list # 공통 경로 목록 참조
               - 'Dockerfile'
               - '.docker/**'
-              - '.github/workflows/ci.yml' # This workflow file
+              - '.github/workflows/ci.yml' # 이 워크플로우 파일
 
   deploy_gh_pages:
     needs: check_paths
@@ -108,9 +114,6 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client
-
-      - name: List files in workspace root # Docker 빌드 스텝 이전에 추가
-        run: ls -la
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
