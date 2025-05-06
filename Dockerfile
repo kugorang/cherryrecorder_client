@@ -1,27 +1,61 @@
-# Stage 1: Build the Flutter web app
-FROM cirrusci/flutter:beta AS builder
+# Stage 1: Custom Flutter installation with Dart SDK 3.7.x
+FROM ubuntu:22.04 AS builder
 
-# Define build arguments for dart-define and base_href
-ARG APP_ENV="prod" # Default value
-ARG WEB_MAPS_API_KEY # 주석 해제 및 활성화
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    unzip \
+    xz-utils \
+    zip \
+    libglu1-mesa \
+    openjdk-11-jdk-headless \
+    cmake \
+    ninja-build \
+    clang \
+    pkg-config \
+    libgtk-3-dev \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Define build arguments
+ARG APP_ENV="prod"
+ARG WEB_MAPS_API_KEY
 ARG WEB_API_BASE_URL
 ARG CHAT_SERVER_IP
-ARG BASE_HREF="/cherryrecorder_client/" # Default base href
+ARG BASE_HREF="/cherryrecorder_client/"
+
+# Set up Flutter
+ENV FLUTTER_HOME=/flutter
+ENV FLUTTER_VERSION=stable
+ENV PATH=$FLUTTER_HOME/bin:$PATH
+
+# Download and set up Flutter - use stable channel
+RUN git clone -b $FLUTTER_VERSION https://github.com/flutter/flutter.git $FLUTTER_HOME
+
+# Run basic Flutter commands to finish setup
+RUN flutter precache
+RUN flutter doctor -v
 
 WORKDIR /app
 
+# Copy pubspec files and get dependencies
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
 
+# Copy the rest of the application code
 COPY . .
 
-# 로컬 테스트를 위해 WEB_MAPS_API_KEY 관련 시크릿 마운트 로직을 제거하고 ARG를 직접 사용
-RUN echo "Building Flutter web with (local-debug configuration for WEB_MAPS_API_KEY):" && \
+# Build web
+RUN echo "Building Flutter web with:" && \
     echo "APP_ENV: ${APP_ENV}" && \
     echo "WEB_API_BASE_URL: ${WEB_API_BASE_URL}" && \
     echo "CHAT_SERVER_IP: ${CHAT_SERVER_IP}" && \
     echo "BASE_HREF: ${BASE_HREF}" && \
-    # WEB_MAPS_API_KEY는 ARG로 전달됨 (로그에는 값 출력 안 함)
+    # WEB_MAPS_API_KEY is a secret, so not echoing it
     flutter build web --release --base-href "${BASE_HREF}" \
     --dart-define=APP_ENV=${APP_ENV} \
     --dart-define=WEB_MAPS_API_KEY=${WEB_MAPS_API_KEY} \
