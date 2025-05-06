@@ -123,9 +123,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          secrets: |
+            "web_maps_api_key=${{ secrets.GH_PAGES_WEB_MAPS_API_KEY }}"
           build-args: |
             APP_ENV=${{ vars.APP_ENV || 'prod' }}
-            WEB_MAPS_API_KEY=${{ secrets.GH_PAGES_WEB_MAPS_API_KEY }}
             WEB_API_BASE_URL=${{ vars.WEB_API_BASE_URL }}
             CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }}
             BASE_HREF=${{ vars.DOCKER_BASE_HREF || '/cherryrecorder_client/' }}
