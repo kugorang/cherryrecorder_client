@@ -1,117 +1,114 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
-import 'package:cherryrecorder_client/core/models/memo.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:logger/logger.dart';
+import '../models/memo.dart';
 
-/// 앱의 로컬 데이터 저장을 관리하는 서비스.
+/// 로컬 저장소 관리 서비스
 ///
-/// Hive 데이터베이스를 사용하여 메모([Memo]) 데이터를 저장, 조회, 수정, 삭제한다.
-/// 웹과 네이티브 환경 모두에서 작동하도록 구현되었다.
+/// Hive를 사용하여 메모 데이터를 로컬에 저장하고 관리한다.
+/// 웹과 네이티브 플랫폼 모두 지원한다.
 class StorageService {
-  static const String _memoBoxName = 'memos_box_v2';
-  static final StorageService instance = StorageService._internal();
-  bool _initialized = false;
-  final Logger _logger = Logger();
-  Box<Memo>? _memoBox;
-  String? _storagePath;
+  static final StorageService _instance = StorageService._internal();
 
+  static StorageService get instance => _instance;
+
+  final _logger = Logger();
+  Box<Memo>? _memoBox; // Memo 데이터를 저장하는 Hive 박스
+  String? _storagePath; // 저장소 경로 (네이티브 환경에서만 사용)
+  bool _isInitialized = false; // 초기화 여부
+
+  // Hive 박스 이름 상수
+  static const String _memoBoxName = 'memos';
+
+  // 싱글톤 패턴 구현
   StorageService._internal();
 
-  /// Hive 초기화
-  ///
-  /// Hive 데이터베이스를 초기화하고 [MemoAdapter]를 등록하며,
-  /// 메모 데이터를 저장할 박스([_memoBox])를 연다.
-  /// 웹 환경에서는 경로 설정 없이 Hive를 초기화한다.
-  ///
-  /// Throws: Hive 초기화 또는 박스 열기 중 오류 발생 시 예외를 던질 수 있다.
-  Future<void> initialize() async {
-    if (_initialized && _memoBox != null && _memoBox!.isOpen) {
-      _logger.d(
-        'Hive는 이미 초기화되었습니다. 박스: ${_memoBox?.name}, 항목: ${_memoBox?.length}',
-      );
+  /// 스토리지 서비스 초기화
+  /// [forceReinitialize]가 true인 경우 이미 초기화되어 있어도 다시 초기화한다.
+  Future<void> initialize({bool forceReinitialize = false}) async {
+    // 이미 초기화되었다면 건너뜀
+    if (_isInitialized && !forceReinitialize) {
+      _logger.d('스토리지 서비스가 이미 초기화되어 있어 초기화를 건너뜁니다.');
       return;
     }
 
+    _logger.d('스토리지 서비스 초기화 시작');
+
     try {
-      _logger.d('Hive 초기화 시작...');
-
-      if (!kIsWeb) {
-        // 모바일 플랫폼에서는 경로 설정이 필요
-        final appDocumentDir =
-            await path_provider.getApplicationDocumentsDirectory();
-        _storagePath = appDocumentDir.path;
-        _logger.d('모바일 저장 경로: $_storagePath');
-
-        // 저장 경로 확인
-        if (_storagePath != null) {
-          final dir = Directory(_storagePath!);
-          if (await dir.exists()) {
-            _logger.d('저장 디렉토리가 존재합니다.');
-            final contents = await dir.list().toList();
-            _logger.d(
-              '디렉토리 내용: ${contents.map((e) => e.path.split('/').last).join(', ')}',
-            );
-          } else {
-            _logger.d('저장 디렉토리가 존재하지 않습니다. 생성합니다.');
-            await dir.create(recursive: true);
-          }
-        }
-
-        _logger.d('Hive.init 호출 (경로: ${_storagePath ?? "웹"})');
-        Hive.init(_storagePath!);
+      // 플랫폼별 초기화
+      if (kIsWeb) {
+        _initializeWeb();
       } else {
-        // 웹에서는 IndexedDB를 자동으로 사용
-        _logger.d('웹 환경 Hive 초기화');
-        await Hive.initFlutter();
-      }
-      _logger.d('Hive.init 완료');
-
-      // Memo 어댑터 등록 확인
-      _logger.d('어댑터 등록 상태 확인');
-      final typeId = 1;
-      final isRegistered = Hive.isAdapterRegistered(typeId);
-      _logger.d('MemoAdapter(typeId: $typeId) 등록 여부: $isRegistered');
-
-      if (!isRegistered) {
-        _logger.d('MemoAdapter 등록 중...');
-        try {
-          Hive.registerAdapter(MemoAdapter());
-          _logger.d('MemoAdapter 등록 성공');
-        } catch (e) {
-          _logger.e('MemoAdapter 등록 오류: $e');
-          // 등록 실패 시 초기화 중단 또는 오류 처리
-          rethrow;
-        }
-      } else {
-        _logger.d('MemoAdapter가 이미 등록되어 있습니다.');
+        await _initializeNative();
       }
 
-      // 메모 박스 열기 시도
-      _logger.d('$_memoBoxName 박스 열기 시도...');
+      // 모델 어댑터 등록
+      if (!Hive.isAdapterRegistered(MemoAdapter().typeId)) {
+        Hive.registerAdapter(MemoAdapter());
+      }
+
+      // 메모 박스 열기
       _memoBox = await Hive.openBox<Memo>(_memoBoxName);
-      _logger.d(
-        '$_memoBoxName 박스 열기 완료. isOpen: ${_memoBox?.isOpen}, path: ${_memoBox?.path}',
-      );
+      _logger.d('메모 박스 열기 성공');
 
+      // 데이터가 심각하게 손상되었을 경우를 처리
       if (_memoBox == null || !_memoBox!.isOpen) {
-        _logger.e('박스를 여는 데 실패했습니다!');
-        throw Exception('Failed to open Hive box: $_memoBoxName');
+        _logger.e('메모 박스를 열 수 없습니다. 저장소를 초기화합니다.');
+        await _resetStorage();
+        return;
       }
 
-      _initialized = true;
-      _logger.d('Hive 초기화 완료: 박스에 ${_memoBox?.length}개의 항목이 있습니다.');
+      // 박스 무결성 검사
+      await validateBoxIntegrity();
 
-      // 초기화 직후 박스 내용 상세 로깅
-      await _logBoxContents("초기화 직후");
-    } catch (e, stackTrace) {
-      _logger.e('Hive 초기화 중 심각한 오류:', error: e, stackTrace: stackTrace);
-      _initialized = false; // 초기화 실패 상태 명시
-      _memoBox = null;
-      // 앱 실행에 필수적이므로 오류를 다시 던짐
+      // 초기화 완료 표시
+      _isInitialized = true;
+      _logger.d('스토리지 서비스 초기화 완료');
+
+      // 데이터 무결성 검사 실행 (초기화 과정에서는 불필요한 순환 참조를 방지하기 위해 단순 검사만 수행)
+      // 무한 루프 방지를 위해 직접 검사 로직 수행
+      if (_memoBox != null && _memoBox!.isOpen) {
+        _logger.d('초기화 후 간단한 박스 상태 점검: ${_memoBox!.keys.length}개 항목');
+      }
+    } catch (e) {
+      _logger.e('스토리지 서비스 초기화 실패: $e');
+      _isInitialized = false;
       rethrow;
     }
+  }
+
+  /// 웹 환경에서의 Hive 초기화
+  void _initializeWeb() {
+    _logger.d('웹 환경 Hive 초기화');
+    Hive.initFlutter();
+  }
+
+  /// 네이티브 환경에서의 Hive 초기화
+  Future<void> _initializeNative() async {
+    _logger.d('네이티브 환경 Hive 초기화 시작');
+
+    // 모바일 플랫폼에서는 경로 설정이 필요
+    final appDocumentDir =
+        await path_provider.getApplicationDocumentsDirectory();
+    _storagePath = appDocumentDir.path;
+    _logger.d('네이티브 저장 경로: $_storagePath');
+
+    // 저장 경로 확인
+    if (_storagePath != null) {
+      final dir = Directory(_storagePath!);
+      if (await dir.exists()) {
+        _logger.d('저장 디렉토리가 존재합니다.');
+      } else {
+        _logger.d('저장 디렉토리가 존재하지 않습니다. 생성합니다.');
+        await dir.create(recursive: true);
+      }
+    }
+
+    _logger.d('Hive.init 호출 (경로: $_storagePath)');
+    Hive.init(_storagePath!);
+    _logger.d('네이티브 환경 Hive 초기화 완료');
   }
 
   // 박스 내용 로깅 헬퍼 함수
@@ -323,47 +320,96 @@ class StorageService {
     }
   }
 
-  /// 초기화 확인 및 필요시 초기화
+  /// 스토리지가 초기화되었는지 확인
   Future<void> _ensureInitialized() async {
-    if (!_initialized || _memoBox == null) {
-      // _memoBox null 체크 추가
-      _logger.d('저장소가 초기화되지 않았거나 박스가 null입니다. 지금 초기화합니다.');
+    if (!_isInitialized || _memoBox == null) {
       await initialize();
     }
   }
 
-  /// 박스가 열려 있는지 확인 및 다시 열기
-  Future<void> _ensureBoxOpen() async {
+  /// 박스가 열려있는지 확인하고, 필요시 열기
+  Future<Box<Memo>> _ensureBoxOpen() async {
     await _ensureInitialized();
 
-    if (!_memoBox!.isOpen) {
-      // Null check operator 사용 (초기화 보장 후)
-      _logger.w('메모 박스가 닫혀 있습니다. 다시 엽니다.');
+    if (_memoBox == null || !_memoBox!.isOpen) {
+      _logger.d('메모 박스가 닫혀있어 다시 엽니다.');
+      _memoBox = await Hive.openBox<Memo>(_memoBoxName);
+    }
+
+    return _memoBox!;
+  }
+
+  /// 박스 무결성 검사 및 손상된 항목 삭제
+  Future<void> validateBoxIntegrity() async {
+    // 박스가 열려있는지 직접 확인
+    if (_memoBox == null || !_memoBox!.isOpen) {
+      _logger.w('박스가 열려있지 않아 무결성 검사를 건너뜁니다.');
+      return;
+    }
+
+    final box = _memoBox!;
+
+    int corruptedItems = 0;
+    final allKeys = box.keys.toList();
+
+    for (final key in allKeys) {
       try {
-        _memoBox = await Hive.openBox<Memo>(_memoBoxName);
-        _logger.d('박스 다시 열기 성공.');
+        // 각 항목을 시험적으로 읽어보기
+        final item = box.get(key);
+        if (item == null) {
+          _logger.w('항목 $key의 값이 null입니다.');
+          corruptedItems++;
+        }
       } catch (e) {
-        _logger.e('박스 다시 열기 실패:', error: e);
-        // 필요시 오류 전파 또는 기본값 처리
-        rethrow;
+        _logger.e('항목 $key 읽기 실패: $e');
+        corruptedItems++;
+
+        // 손상된 항목 삭제 시도
+        try {
+          await box.delete(key);
+          _logger.d('손상된 항목 $key 삭제 성공');
+        } catch (deleteError) {
+          _logger.e('손상된 항목 $key 삭제 실패: $deleteError');
+        }
       }
+    }
+
+    if (corruptedItems > 0) {
+      _logger.w('$corruptedItems개의 손상된 항목이 발견되었습니다.');
+    } else {
+      _logger.d('무결성 검사 완료: 모든 항목이 정상입니다.');
     }
   }
 
-  /// 앱 종료 전 Hive 박스 닫기 (더 이상 필수 아님, 하지만 유지)
+  /// 모든 Hive 박스 닫기
   Future<void> closeBoxes() async {
-    if (_initialized) {
-      _logger.d('Hive 박스 닫기 시작');
-      if (_memoBox != null && _memoBox!.isOpen) {
-        // 닫기 전에 마지막으로 플러시 시도 (선택적)
-        // await _memoBox!.flush();
-        await _memoBox!.close();
-      }
-      // Hive.close()는 모든 박스를 닫으므로 개별 close 후에는 필요 없을 수 있음
-      // await Hive.close();
-      _memoBox = null;
-      _initialized = false;
-      _logger.d('Hive 박스 닫힘');
+    if (_memoBox != null && _memoBox!.isOpen) {
+      await _memoBox!.close();
+      _logger.d('메모 박스 닫기 성공');
+    }
+  }
+
+  /// 저장소 완전 초기화 (모든 데이터 삭제)
+  Future<void> _resetStorage() async {
+    _logger.w('저장소 초기화 시작');
+
+    try {
+      // 이미 열린 박스가 있으면 닫기
+      await closeBoxes();
+
+      // Hive 박스 삭제
+      await Hive.deleteBoxFromDisk(_memoBoxName);
+      _logger.d('메모 박스 삭제 성공');
+
+      // 재초기화
+      _memoBox = await Hive.openBox<Memo>(_memoBoxName);
+      _logger.d('메모 박스 재생성 성공');
+
+      _isInitialized = true;
+    } catch (e) {
+      _logger.e('저장소 초기화 실패: $e');
+      _isInitialized = false;
+      rethrow;
     }
   }
 }
