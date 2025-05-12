@@ -13,7 +13,8 @@ import 'api_client_test.mocks.dart'; // 생성될 모의 객체 파일
 void main() {
   late MockClient mockClient;
   late ApiClient apiClient;
-  const String testBaseUrl = 'http://test.com';
+  const String testBaseUrl = 'http://localhost:8080';
+  const String expectedBaseUrl = 'http://10.0.2.2:8080'; // 안드로이드 변환 주소
 
   setUp(() {
     mockClient = MockClient();
@@ -26,7 +27,7 @@ void main() {
       'returns data if the http call completes successfully (200)',
       () async {
         // Arrange
-        final uri = Uri.parse('$testBaseUrl/test');
+        final uri = Uri.parse('$expectedBaseUrl/test');
         final expectedResponse = {'key': 'value'};
         when(mockClient.get(uri, headers: anyNamed('headers'))).thenAnswer(
           (_) async => http.Response(jsonEncode(expectedResponse), 200),
@@ -45,7 +46,7 @@ void main() {
       'throws an exception if the http call completes with a server error (500)',
       () async {
         // Arrange
-        final uri = Uri.parse('$testBaseUrl/test');
+        final uri = Uri.parse('$expectedBaseUrl/test');
         when(
           mockClient.get(uri, headers: anyNamed('headers')),
         ).thenAnswer((_) async => http.Response('Server error', 500));
@@ -60,7 +61,7 @@ void main() {
       'throws an exception if the http call results in a network error',
       () async {
         // Arrange
-        final uri = Uri.parse('$testBaseUrl/test');
+        final uri = Uri.parse('$expectedBaseUrl/test');
         when(mockClient.get(uri, headers: anyNamed('headers'))).thenThrow(
           const SocketException('Network error'),
         ); // Simulate a network error
@@ -80,7 +81,7 @@ void main() {
       'returns data if the http call completes successfully (201)',
       () async {
         // Arrange
-        final uri = Uri.parse('$testBaseUrl/test');
+        final uri = Uri.parse('$expectedBaseUrl/test');
         final expectedResponse = {'id': 1, 'data': 'test'};
         when(
           mockClient.post(uri, headers: anyNamed('headers'), body: encodedBody),
@@ -103,7 +104,7 @@ void main() {
       'throws an exception if the http call completes with a server error (400)',
       () async {
         // Arrange
-        final uri = Uri.parse('$testBaseUrl/test');
+        final uri = Uri.parse('$expectedBaseUrl/test');
         when(
           mockClient.post(uri, headers: anyNamed('headers'), body: encodedBody),
         ).thenAnswer((_) async => http.Response('Bad request', 400));
@@ -120,7 +121,7 @@ void main() {
       'throws an exception if the http call results in a network error',
       () async {
         // Arrange
-        final uri = Uri.parse('$testBaseUrl/test');
+        final uri = Uri.parse('$expectedBaseUrl/test');
         when(
           mockClient.post(uri, headers: anyNamed('headers'), body: encodedBody),
         ).thenThrow(

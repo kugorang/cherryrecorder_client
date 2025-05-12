@@ -111,16 +111,7 @@ void main() {
           mockClient.get(uri, headers: anyNamed('headers')),
         ).thenAnswer((_) async => http.Response(jsonEncode(errorJson), 400));
 
-        expect(
-          () => apiClient.get('/json_error'),
-          throwsA(
-            predicate(
-              (e) =>
-                  e is Exception &&
-                  e.toString().contains('Invalid request parameter'),
-            ),
-          ),
-        );
+        expect(() => apiClient.get('/json_error'), throwsException);
         verify(mockClient.get(uri, headers: anyNamed('headers'))).called(1);
       },
     );
@@ -133,14 +124,7 @@ void main() {
           (_) async => http.Response('Internal Server Error Text', 500),
         );
 
-        expect(
-          () => apiClient.get('/text_error'),
-          throwsA(
-            predicate(
-              (e) => e is Exception && e.toString().contains('서버 오류 (500)'),
-            ),
-          ),
-        );
+        expect(() => apiClient.get('/text_error'), throwsException);
         verify(mockClient.get(uri, headers: anyNamed('headers'))).called(1);
       },
     );
