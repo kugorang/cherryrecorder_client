@@ -20,7 +20,7 @@ val localProperties = Properties().apply {
 
 android {
     namespace = "com.kugorang.cherryrecorder"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -35,7 +35,7 @@ android {
     defaultConfig {
         applicationId = "com.kugorang.cherryrecorder"
         minSdk = 23
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
