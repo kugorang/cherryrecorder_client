@@ -6,20 +6,25 @@ import 'package:logger/logger.dart';
 import 'google_maps_service_interface.dart';
 
 /// Google Maps API 관련 기능을 플랫폼별로 처리하는 서비스
+///
+/// 웹과 모바일 환경에서 각각 다른 구현체를 사용하여 Google Maps 관련 기능을 제공한다.
+/// - 웹: JavaScript API 사용 (API 키 필요)
+/// - 안드로이드: 네이티브 Maps SDK 사용 (매니페스트에 API 키 정의)
+/// - iOS: 네이티브 Maps SDK 사용 (info.plist에 API 키 정의)
 class GoogleMapsService implements GoogleMapsServiceInterface {
   static final GoogleMapsService _instance = GoogleMapsService._internal();
   final Logger _logger = Logger();
   bool _isInitialized = false;
-  bool _isEnvLoaded = false; // .env 로드 상태 추적
+  bool _isEnvLoaded = false;
 
   // API 키 및 URL 변수
   String _webMapsApiKey = '';
-  String _androidApiBaseUrl = 'http://10.0.2.2:8080'; // 기본값
+  String _androidApiBaseUrl = 'http://10.0.2.2:8080'; // 안드로이드 에뮬레이터 기본값
   String _webApiBaseUrl = 'http://localhost:8080';
   String _serverBaseUrl = '';
 
   // 내부 상태 변수
-  final Completer<void> _envLoadCompleter = Completer<void>(); // .env 로딩 완료 추적
+  final Completer<void> _envLoadCompleter = Completer<void>();
   final Completer<bool> _webMapsLoadedCompleter = Completer<bool>();
   late GoogleMapsServiceInterface _platformImpl;
 
@@ -27,13 +32,16 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
     return _instance;
   }
 
-  // private 생성자
   GoogleMapsService._internal() {
-    // 생성 시점에 바로 _serverBaseUrl 초기화 (기본값 사용)
     _serverBaseUrl = kIsWeb ? _webApiBaseUrl : _androidApiBaseUrl;
-    // 플랫폼 구현체 초기화는 configure 대신 initialize에서 수행
   }
 
+  /// 서비스 초기화
+  ///
+  /// 플랫폼별 구현체를 생성하고 초기화한다.
+  /// - [webApiBaseUrl]: 웹 환경에서 사용할 API 서버 URL
+  /// - [androidApiBaseUrl]: 안드로이드 환경에서 사용할 API 서버 URL
+  /// - [webMapsApiKey]: 웹 환경에서 사용할 Google Maps API 키
   @override
   Future<void> initialize({
     String? webApiBaseUrl,
@@ -55,16 +63,22 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
       _envLoadCompleter.complete();
 
       _logger.i('GoogleMapsService: 설정 완료 - 서버 URL: $_serverBaseUrl');
-      _logger.i(
-        'Web Maps API Key: ${_webMapsApiKey.isEmpty ? "(비어있음)" : "설정됨"}',
-      );
 
-      // 플랫폼별 구현체 생성 (설정값 사용)
+      // 웹 환경일 때만 API 키 관련 로그 출력
+      if (kIsWeb) {
+        _logger.i(
+          'Web Maps API Key: ${_webMapsApiKey.isEmpty ? "(비어있음)" : "설정됨"}',
+        );
+      } else {
+        _logger.i('Android 환경: API 키는 AndroidManifest.xml에서 관리됨');
+      }
+
+      // 플랫폼별 구현체 생성
       if (kIsWeb) {
         _platformImpl = getWebImplementation(
           logger: _logger,
           webMapsLoadedCompleter: _webMapsLoadedCompleter,
-          mapsApiKey: _webMapsApiKey, // 로드된 키 사용
+          mapsApiKey: _webMapsApiKey,
         );
       } else {
         _platformImpl = getMobileImplementation(
@@ -77,11 +91,8 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
       _logger.i('GoogleMapsService: 초기화 시작');
 
       // 플랫폼별 초기화 실행
-      if (kIsWeb) {
-        await _platformImpl.initialize();
-      } else {
-        await _platformImpl.initialize();
-      }
+      await _platformImpl.initialize();
+
       _isInitialized = true;
       _logger.i('GoogleMapsService: 초기화 완료');
     } catch (e) {
@@ -91,12 +102,14 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
     }
   }
 
-  /// 서버 URL 획득 (이제 isWeb 파라미터 불필요)
+  /// 서버 URL 획득
+  ///
+  /// [isWeb]이 명시적으로 제공된 경우에만 해당 값을 사용하고,
+  /// 그렇지 않은 경우 현재 플랫폼에 맞는 URL을 반환한다.
   @override
   String getServerUrl({bool? isWeb}) {
     if (!_isEnvLoaded && !_envLoadCompleter.isCompleted) {
-      _logger.w('getServerUrl 호출됨 - .env 아직 로드되지 않음');
-      // 필요시 기본값 또는 에러 처리
+      _logger.w('getServerUrl 호출됨 - 환경 설정이 로드되지 않음');
     }
 
     // isWeb이 명시적으로 제공된 경우에만 해당 값 사용 (테스트 목적)
@@ -104,7 +117,7 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
       return isWeb ? _webApiBaseUrl : _androidApiBaseUrl;
     }
 
-    // 명시적으로 지정되지 않은 경우 현재 플랫폼 감지하여 올바른 URL 반환
+    // 현재 플랫폼에 맞는 URL 반환
     return kIsWeb ? _webApiBaseUrl : _androidApiBaseUrl;
   }
 
@@ -112,12 +125,28 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
   @override
   String getApiKey() {
     if (!_isEnvLoaded && !_envLoadCompleter.isCompleted) {
-      _logger.w('getApiKey 호출됨 - .env 아직 로드되지 않음');
+      _logger.w('getApiKey 호출됨 - 환경 설정이 로드되지 않음');
       return '';
     }
-    return _webMapsApiKey;
+
+    // 플랫폼에 따라 다른 방식으로 처리
+    if (kIsWeb) {
+      // 웹에서는 _webMapsApiKey 반환
+      return _webMapsApiKey;
+    } else {
+      // 안드로이드/iOS에서는 플랫폼 구현체에 위임
+      if (_isInitialized && _platformImpl != null) {
+        return _platformImpl.getApiKey();
+      }
+      // 초기화 전이면 빈 문자열 반환
+      _logger.w('getApiKey: 플랫폼 구현체가 초기화되지 않음');
+      return '';
+    }
   }
 
+  /// 구글 맵 위젯 생성
+  ///
+  /// 플랫폼에 맞는 구글 맵 위젯을 생성하여 반환한다.
   @override
   Widget createMap({
     required LatLng initialPosition,

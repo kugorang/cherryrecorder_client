@@ -5,14 +5,12 @@ import 'package:logger/logger.dart';
 import 'package:geolocator/geolocator.dart';
 import 'google_maps_service_interface.dart';
 
-/// 모바일 환경을 위한 Google Maps 서비스 구현
+/// 모바일 환경(Android/iOS)을 위한 Google Maps 서비스 구현
 class GoogleMapsServiceMobile implements GoogleMapsServiceInterface {
   final Logger _logger;
   final Completer<bool> _webMapsLoadedCompleter;
   final Completer<void> _envLoadCompleter;
 
-  // API 키를 저장할 필드 추가 -> 제거 (네이티브에서 처리)
-  // String _mapsApiKey = "";
   bool _isInitializing = false;
   int _initRetryCount = 0;
   static const int _maxRetries = 3;
@@ -21,15 +19,9 @@ class GoogleMapsServiceMobile implements GoogleMapsServiceInterface {
     required Logger logger,
     required Completer<bool> webMapsLoadedCompleter,
     required Completer<void> envLoadCompleter,
-    // String? mapsApiKey, // 파라미터 제거
   }) : _logger = logger,
        _webMapsLoadedCompleter = webMapsLoadedCompleter,
-       _envLoadCompleter = envLoadCompleter {
-    // API 키 관련 로직 제거
-    // if (mapsApiKey != null && mapsApiKey.isNotEmpty) {
-    //   _mapsApiKey = mapsApiKey;
-    // }
-  }
+       _envLoadCompleter = envLoadCompleter;
 
   /// 위치 서비스와 권한 확인
   Future<bool> _checkLocationPermission() async {
@@ -66,7 +58,6 @@ class GoogleMapsServiceMobile implements GoogleMapsServiceInterface {
     String? webApiBaseUrl,
     String? androidApiBaseUrl,
     String? webMapsApiKey,
-    // String? androidMapsApiKey, // 파라미터 제거
   }) async {
     if (_isInitializing) {
       _logger.d('GoogleMapsService: 이미 초기화 중입니다');
@@ -77,11 +68,6 @@ class GoogleMapsServiceMobile implements GoogleMapsServiceInterface {
     _logger.d('GoogleMapsService: 모바일 환경용 초기화 시작');
 
     try {
-      // 환경 변수 업데이트 로직 제거 (API 키 관련)
-      // if (androidMapsApiKey != null && androidMapsApiKey.isNotEmpty) {
-      //   _mapsApiKey = androidMapsApiKey;
-      // }
-
       // 환경 변수 로드 완료 대기
       if (!_envLoadCompleter.isCompleted) {
         await _envLoadCompleter.future;
@@ -93,13 +79,6 @@ class GoogleMapsServiceMobile implements GoogleMapsServiceInterface {
       // 모바일 환경에서는 초기화에 시간이 필요할 수 있으므로 지연 추가
       _logger.d('GoogleMapsService: 지도 서비스 초기화 전 지연 적용');
       await Future.delayed(const Duration(seconds: 2));
-
-      // GoogleMap 컨트롤러 초기화를 위한 사전 준비 작업
-      // 여기서 API 키 검증 등 필요한 작업 수행
-      // API 키 검증 로직 제거
-      // _logger.d(
-      //   'GoogleMapsService: API 키 검증: ${_mapsApiKey.isEmpty ? "키 없음" : "키 있음"}',
-      // );
 
       if (!_webMapsLoadedCompleter.isCompleted) {
         _webMapsLoadedCompleter.complete(true);
@@ -173,9 +152,10 @@ class GoogleMapsServiceMobile implements GoogleMapsServiceInterface {
     );
   }
 
-  // 부모 클래스로부터 API 키를 가져오기
+  /// 모바일에서는 Flutter 코드 레벨에서 API 키를 반환할 필요 없음
+  /// (매니페스트/info.plist에서 처리)
   @override
-  String getApiKey() => ""; // 모바일에서는 Flutter 코드 레벨에서 키를 반환할 필요 없음
+  String getApiKey() => "";
 
   @override
   String getServerUrl({bool? isWeb}) => ""; // 인터페이스와 시그니처 통일
