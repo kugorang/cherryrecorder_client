@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'core/network/api_client.dart';
 import 'core/constants/api_constants.dart';
-import 'package:http/http.dart' as http; // Add http import
-import 'package:logger/logger.dart'; // Logger import 추가
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // Google Maps 추가
-import 'core/models/place_summary.dart'; // PlaceSummary 모델 추가
-import 'core/services/google_maps_service.dart'; // GoogleMapsService 추가
+import 'package:http/http.dart' as http;
+import 'package:logger/logger.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'core/models/place_summary.dart';
+import 'core/services/google_maps_service.dart';
 
 /// API 연결 테스트를 위한 위젯
+///
+/// 서버 상태, 주변 장소 검색, 장소 검색, 장소 상세 정보를 조회하는
+/// API 엔드포인트 동작을 검증한다.
 class ApiConnectionTest extends StatefulWidget {
   const ApiConnectionTest({super.key});
 
@@ -19,7 +22,7 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
   late final ApiClient _apiClient;
   String _resultText = '테스트 결과가 여기에 표시됩니다.';
   bool _isLoading = false;
-  final _logger = Logger(); // Logger 인스턴스 추가
+  final _logger = Logger();
 
   // 지도 관련 변수
   GoogleMapController? _mapController;
@@ -32,7 +35,6 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
     super.initState();
     // 플랫폼에 맞는 서버 URL 가져오기
     final googleMapsService = GoogleMapsService();
-    // 파라미터 없이 호출하면 자동으로 현재 플랫폼에 맞는 URL 반환
     final serverUrl = googleMapsService.getServerUrl();
     _logger.i('API 테스트 페이지 - URL: $serverUrl');
 
@@ -55,14 +57,13 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
     });
 
     try {
-      // ApiClient의 baseUrl을 사용하므로 엔드포인트 경로만 전달
       final result = await _apiClient.get('/health');
       setState(() {
         _resultText = '서버 응답: $result';
       });
     } catch (e) {
       final errorMessage = '오류 발생: $e';
-      _logger.e(errorMessage, error: e); // print -> logger.e
+      _logger.e(errorMessage, error: e);
       setState(() {
         _resultText = errorMessage;
       });
@@ -87,7 +88,7 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
       final testData = {
         'latitude': 37.5665,
         'longitude': 126.9780,
-        'radius': 1000.0, // 정수에서 double로 수정
+        'radius': 1000.0,
         'type': 'restaurant', // 음식점 검색
       };
 
@@ -142,7 +143,7 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
       }
     } catch (e) {
       final errorMessage = '오류 발생: $e';
-      _logger.e(errorMessage, error: e); // print -> logger.e
+      _logger.e(errorMessage, error: e);
       setState(() {
         _resultText = errorMessage;
       });
@@ -224,7 +225,7 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
       }
     } catch (e) {
       final errorMessage = '오류 발생: $e';
-      _logger.e(errorMessage, error: e); // print -> logger.e
+      _logger.e(errorMessage, error: e);
       setState(() {
         _resultText = errorMessage;
       });
@@ -316,7 +317,7 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
       });
     } catch (e) {
       final errorMessage = '오류 발생: $e';
-      _logger.e(errorMessage, error: e); // print -> logger.e
+      _logger.e(errorMessage, error: e);
       setState(() {
         _resultText = errorMessage;
       });
@@ -332,14 +333,11 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('API 연결 테스트'),
-        // 디버그 모드일 때만 메인 앱으로 돌아가는 버튼 추가
         actions: [
-          // kDebugMode를 사용하면 에러가 발생해서 항상 표시되도록 변경
           IconButton(
             icon: const Icon(Icons.home),
             tooltip: '메인 앱으로 돌아가기',
             onPressed: () {
-              // 현재 화면을 대체하면서 '/' 경로(SplashScreen)로 이동
               Navigator.pushReplacementNamed(context, '/');
             },
           ),

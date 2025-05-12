@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -6,9 +7,9 @@ import 'package:logger/logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/models/place_summary.dart';
-import '../../../../core/services/google_maps_service.dart'; // GoogleMapsService 임포트
+import '../../../../core/services/google_maps_service.dart';
 
-// Place 모델 정의 (MapScreen과 동일하게 사용)
+/// 지도에 표시되는 장소 정보 모델
 class Place {
   final String id;
   final String name;
@@ -35,6 +36,9 @@ class Place {
   }
 }
 
+/// 지도 화면의 뷰모델
+///
+/// 주변 장소 데이터 조회, 지도 마커 관리, 검색 기능 등을 담당
 class MapViewModel extends ChangeNotifier {
   final Logger _logger = Logger();
   late final ApiClient _apiClient;
@@ -51,7 +55,6 @@ class MapViewModel extends ChangeNotifier {
   // --- 타이머 및 컨트롤러 ---
   Timer? _searchDebounce;
   Timer? _mapMoveDebounce;
-  // ScrollController는 UI에 두는 것이 적합할 수 있으나, 스크롤 로직을 위해 ViewModel에서 관리
   final ScrollController scrollController = ScrollController();
 
   // --- Public Getters ---
@@ -62,14 +65,20 @@ class MapViewModel extends ChangeNotifier {
   List<Place> get placesToShow =>
       _searchResults.isNotEmpty ? _searchResults : _nearbyPlaces;
   String? get selectedPlaceId => _selectedPlaceId;
-  LatLng get currentMapCenter => _currentMapCenter; // 외부에서 읽을 필요는 없을 수 있음
+  LatLng get currentMapCenter => _currentMapCenter;
 
+  /// 생성자: 네트워크 클라이언트 초기화
   MapViewModel() {
-    // GoogleMapsService를 직접 가져와서 플랫폼에 맞는 서버 URL 사용
+    // GoogleMapsService를 통해 플랫폼에 맞는 서버 URL 사용
     final googleMapsService = GoogleMapsService();
-    final serverUrl = googleMapsService.getServerUrl(); // 자동으로 플랫폼 감지
-    _logger.i('MapViewModel API Client 초기화 URL: $serverUrl');
-    _apiClient = ApiClient(client: http.Client(), baseUrl: serverUrl);
+    final serverUrl = googleMapsService.getServerUrl();
+
+    _logger.i('MapViewModel API Client 초기화 - URL: $serverUrl');
+
+    final httpClient = http.Client();
+    _apiClient = ApiClient(client: httpClient, baseUrl: serverUrl);
+
+    _logger.d('MapViewModel 생성 완료');
   }
 
   @override
@@ -77,25 +86,29 @@ class MapViewModel extends ChangeNotifier {
     _searchDebounce?.cancel();
     _mapMoveDebounce?.cancel();
     scrollController.dispose();
-    _apiClient.dispose(); // ApiClient 내부의 http.Client 해제
+    _apiClient.dispose();
     super.dispose();
   }
 
-  // --- Public Methods (기존 MapScreen의 로직 이동) ---
-
   /// 초기 장소 로드 (앱 시작 또는 화면 진입 시 호출)
   Future<void> fetchInitialPlaces() async {
+    _logger.d(
+      '📍 fetchInitialPlaces 호출됨: 중심 위치 ${_currentMapCenter.latitude}, ${_currentMapCenter.longitude}',
+    );
     await _fetchNearbyPlaces(_currentMapCenter, isInitialLoad: true);
   }
 
-  /// 주변 장소 가져오기
+  /// 주변 장소 데이터 가져오기
+  ///
+  /// [center] 검색 중심 좌표
+  /// [isInitialLoad] 초기 로드 여부 (true면 _nearbyPlaces에 저장)
   Future<void> _fetchNearbyPlaces(
     LatLng center, {
     bool isInitialLoad = false,
   }) async {
     _setLoading(true);
     _errorMessage = null;
-    notifyListeners(); // 로딩 시작 알림
+    notifyListeners();
 
     try {
       _logger.i('🔍 주변 장소 요청 시작: ${center.latitude}, ${center.longitude}');
@@ -110,23 +123,53 @@ class MapViewModel extends ChangeNotifier {
           )
           .timeout(const Duration(seconds: 10));
 
-      _logger.i('✅ 주변 장소 응답 받음');
+      _logger.i(
+        '✅ 주변 장소 응답 받음: ${response.toString().substring(0, min(100, response.toString().length))}...',
+      );
 
       if (response.containsKey('places') && response['places'] is List) {
         final List placesData = response['places'];
         _logger.i('📍 주변 장소 데이터 ${placesData.length}개 발견');
+
+        if (placesData.isEmpty) {
+          _logger.w('⚠️ 서버에서 장소 데이터를 반환했지만 빈 목록임');
+          _searchResults = [];
+          if (isInitialLoad) _nearbyPlaces = [];
+          _createMarkers();
+          _errorMessage = '주변 장소 정보를 찾을 수 없습니다.';
+          return;
+        }
+
+        // 첫 번째 장소 데이터 로그로 출력
+        if (placesData.isNotEmpty) {
+          _logger.d('🔍 첫 번째 장소 데이터 샘플: ${placesData[0]}');
+        }
+
         final placeSummaries =
             placesData.map((data) => PlaceSummary.fromJson(data)).toList();
         final places =
             placeSummaries.map((s) => Place.fromPlaceSummary(s)).toList();
 
+        _logger.d('🔄 PlaceSummary 변환 결과: ${placeSummaries.length}개');
+        _logger.d('🔄 Place 변환 결과: ${places.length}개');
+
+        // 첫 번째 변환된 장소 정보 로그
+        if (places.isNotEmpty) {
+          final place = places[0];
+          _logger.d(
+            '🏠 첫 번째 변환된 장소: ${place.name} (${place.id}) at ${place.location.latitude}, ${place.location.longitude}',
+          );
+        }
+
         if (isInitialLoad) {
           _nearbyPlaces = places; // 초기 로드 시 nearby 저장
+          _logger.d('📋 초기 주변 장소로 ${_nearbyPlaces.length}개 저장됨');
         }
         _searchResults = places; // 항상 최신 결과는 searchResults에 반영
+        _logger.d('🔍 검색 결과로 ${_searchResults.length}개 장소 저장됨');
         _createMarkers();
       } else {
-        _logger.w('⚠️ 주변 장소 데이터 없음: $response');
+        _logger.w('⚠️ 주변 장소 데이터 없음 또는 잘못된 형식: $response');
         _searchResults = [];
         if (isInitialLoad) _nearbyPlaces = [];
         _createMarkers();
@@ -137,18 +180,19 @@ class MapViewModel extends ChangeNotifier {
       _searchResults = [];
       if (isInitialLoad) _nearbyPlaces = [];
       _createMarkers();
-      // 사용자에게 보여줄 오류 메시지 설정 (timeout 등 포함)
-      _errorMessage = e is TimeoutException ? '서버 응답 시간 초과' : '서버 연결 오류 발생';
+      _errorMessage = e is TimeoutException ? '서버 응답 시간 초과' : '서버 연결 오류 발생: $e';
     } finally {
       _setLoading(false);
-      // notifyListeners(); // 로딩 종료 및 결과 반영
     }
   }
 
   /// 텍스트 기반 장소 검색
+  ///
+  /// [query] 검색어
+  /// [center] 검색 중심 좌표
   Future<void> searchPlaces(String query, LatLng center) async {
     if (query.isEmpty) {
-      // 검색어 비면 초기 주변 장소 목록 보여주기 (또는 현재 지도 중심 주변)
+      // 검색어 비면 초기 주변 장소 목록 보여주기
       _searchResults = _nearbyPlaces;
       _selectedPlaceId = null; // 선택 해제
       _createMarkers();
@@ -199,16 +243,26 @@ class MapViewModel extends ChangeNotifier {
       _errorMessage = e is TimeoutException ? '서버 응답 시간 초과' : '서버 연결 오류 발생';
     } finally {
       _setLoading(false);
-      // notifyListeners(); // 로딩 종료 및 결과 반영
     }
   }
 
   /// 마커 생성 및 상태 업데이트
   void _createMarkers() {
     _markers.clear();
-    final places = placesToShow; // getter 사용
+    final places = placesToShow;
+
+    _logger.d('🔄 마커 생성 시작: ${places.length}개 장소 데이터');
+
+    if (places.isEmpty) {
+      _logger.w('⚠️ 마커 생성 실패: 장소 데이터가 없음');
+      notifyListeners();
+      return;
+    }
 
     for (final place in places) {
+      _logger.d(
+        '🏷️ 마커 생성: ${place.name} (ID: ${place.id}) at ${place.location.latitude}, ${place.location.longitude}',
+      );
       _markers.add(
         Marker(
           markerId: MarkerId(place.id),
@@ -218,15 +272,16 @@ class MapViewModel extends ChangeNotifier {
         ),
       );
     }
-    // notifyListeners(); // 마커 변경 알림 -> 로딩 종료 시 한 번만 호출하도록 변경
+
+    _logger.d('✅ 마커 생성 완료: ${_markers.length}개 마커');
+    notifyListeners();
   }
 
   /// 마커 탭 이벤트 처리
   void _onMarkerTapped(String placeId) {
     _selectedPlaceId = placeId;
-    notifyListeners(); // 선택 변경 알림
-    // 스크롤은 UI 레이어에서 처리하거나, 콜백을 통해 요청할 수 있음
-    _scrollToSelectedPlace(); // ViewModel에서 직접 처리 시도
+    notifyListeners();
+    _scrollToSelectedPlace();
   }
 
   /// 선택된 장소로 스크롤
@@ -244,6 +299,8 @@ class MapViewModel extends ChangeNotifier {
   }
 
   /// 검색어 입력 디바운스 처리
+  ///
+  /// 검색어 입력 후 1초 동안 추가 입력이 없으면 검색 실행
   void performSearchDebounced(String query, LatLng currentCenter) {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(seconds: 1), () {
@@ -252,7 +309,10 @@ class MapViewModel extends ChangeNotifier {
     });
   }
 
-  /// 지도 카메라 이동 멈춤 시 호출될 메서드 (UI에서 호출)
+  /// 지도 카메라 이동 멈춤 시 호출될 메서드
+  ///
+  /// [currentSearchQuery] 현재 검색창에 입력된 검색어
+  /// [mapCenter] 현재 지도의 중심 좌표
   void onCameraIdle(String currentSearchQuery, LatLng mapCenter) {
     _currentMapCenter = mapCenter; // 현재 중심 업데이트
     if (_mapMoveDebounce?.isActive ?? false) _mapMoveDebounce!.cancel();
@@ -267,7 +327,7 @@ class MapViewModel extends ChangeNotifier {
     });
   }
 
-  /// 지도 카메라 이동 중 호출될 메서드 (UI에서 호출)
+  /// 지도 카메라 이동 중 호출될 메서드
   void onCameraMove(LatLng target) {
     _currentMapCenter = target;
     // 이동 중에는 notifyListeners() 호출하지 않음 (성능 저하 방지)
