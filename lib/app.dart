@@ -109,7 +109,7 @@ class _CherryRecorderAppState extends State<CherryRecorderApp> {
     // 스토리지 초기화 상태에 따라 다른 화면 표시
     if (!_storageInitialized) {
       // 초기화 중 로딩 화면 표시
-      return MaterialApp(
+      return const MaterialApp(
         debugShowCheckedModeBanner: false,
         home: Scaffold(
           body: Center(
@@ -132,17 +132,16 @@ class _CherryRecorderAppState extends State<CherryRecorderApp> {
       debugShowCheckedModeBanner: false,
       theme: theme,
       // 웹 특화 설정
-      scrollBehavior:
-          kIsWeb
-              ? ScrollConfiguration.of(context).copyWith(
-                physics: const ClampingScrollPhysics(), // 바운스 스크롤 방지
-                dragDevices: {
-                  // 웹에서 드래그 가능 디바이스 설정
-                  PointerDeviceKind.touch,
-                  PointerDeviceKind.mouse,
-                },
-              )
-              : null,
+      scrollBehavior: kIsWeb
+          ? ScrollConfiguration.of(context).copyWith(
+              physics: const ClampingScrollPhysics(), // 바운스 스크롤 방지
+              dragDevices: {
+                // 웹에서 드래그 가능 디바이스 설정
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+              },
+            )
+          : null,
       home: const SplashScreen(), // home 속성 사용
       onGenerateRoute: _generateRoute, // 커스텀 라우트 생성기 추가
     );

@@ -16,11 +16,38 @@ class MemoAdapter extends TypeAdapter<Memo> {
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
+
+    // latitude와 longitude를 안전하게 처리
+    double latitude;
+    double longitude;
+
+    // 위도 처리
+    if (fields[2] is double) {
+      latitude = fields[2] as double;
+    } else if (fields[2] is String) {
+      latitude = double.parse(fields[2] as String);
+    } else if (fields[2] is int) {
+      latitude = (fields[2] as int).toDouble();
+    } else {
+      latitude = 0.0; // 기본값
+    }
+
+    // 경도 처리
+    if (fields[3] is double) {
+      longitude = fields[3] as double;
+    } else if (fields[3] is String) {
+      longitude = double.parse(fields[3] as String);
+    } else if (fields[3] is int) {
+      longitude = (fields[3] as int).toDouble();
+    } else {
+      longitude = 0.0; // 기본값
+    }
+
     return Memo(
       id: fields[0] as String?,
       placeId: fields[1] as String,
-      latitude: fields[2] as double,
-      longitude: fields[3] as double,
+      latitude: latitude,
+      longitude: longitude,
       content: fields[4] as String,
       tags: fields[5] as String?,
       createdAt: fields[6] as DateTime?,

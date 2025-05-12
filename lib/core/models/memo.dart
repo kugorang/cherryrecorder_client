@@ -79,11 +79,25 @@ class Memo {
   }
 
   factory Memo.fromJson(Map<String, dynamic> json) {
+    // latitude, longitude 값을 안전하게 처리
+    double parseSafeDouble(dynamic value) {
+      if (value == null) {
+        return 0.0;
+      } else if (value is double) {
+        return value;
+      } else if (value is int) {
+        return value.toDouble();
+      } else if (value is String) {
+        return double.tryParse(value) ?? 0.0;
+      }
+      return 0.0;
+    }
+
     return Memo(
       id: json['id'] as String?,
       placeId: json['placeId'] as String,
-      latitude: (json['latitude'] as num).toDouble(),
-      longitude: (json['longitude'] as num).toDouble(),
+      latitude: parseSafeDouble(json['latitude']),
+      longitude: parseSafeDouble(json['longitude']),
       content: json['content'] as String,
       tags: json['tags'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
@@ -107,18 +121,24 @@ class Memo {
 
   // SQLite 호환 메서드 - 레거시 지원
   factory Memo.fromMap(Map<String, dynamic> map) {
-    // 추가 필드 처리 - 없을 경우 기본값 사용
-    double latitude = 0.0;
-    double longitude = 0.0;
-    
-    // latitude, longitude 필드가 있으면 사용
-    if (map.containsKey('latitude')) {
-      latitude = (map['latitude'] as num).toDouble();
+    // 좌표 값 안전하게 파싱하는 헬퍼 함수
+    double parseSafeDouble(dynamic value) {
+      if (value == null) {
+        return 0.0;
+      } else if (value is double) {
+        return value;
+      } else if (value is int) {
+        return value.toDouble();
+      } else if (value is String) {
+        return double.tryParse(value) ?? 0.0;
+      }
+      return 0.0;
     }
-    if (map.containsKey('longitude')) {
-      longitude = (map['longitude'] as num).toDouble();
-    }
-    
+
+    // 위도, 경도 값 안전하게 처리
+    double latitude = parseSafeDouble(map['latitude']);
+    double longitude = parseSafeDouble(map['longitude']);
+
     return Memo(
       id: map[DatabaseHelper.columnId] as String?,
       placeId: map[DatabaseHelper.columnPlaceId] as String,
