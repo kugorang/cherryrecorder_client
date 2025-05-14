@@ -1,6 +1,12 @@
 import java.util.Properties
 import java.io.FileInputStream
 
+val keystorePropertiesFile = rootProject.file("../keystore.properties") // android/keystore.properties
+val keystoreProperties = java.util.Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+}
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -43,9 +49,17 @@ android {
         // manifestPlaceholders["mapsApiKey"] = mapsApiKey 
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("${System.getenv("MYAPP_UPLOAD_STORE_FILE_DIR") ?: project.rootDir}/app/${keystoreProperties.getProperty("MYAPP_UPLOAD_STORE_FILE") ?: System.getenv("MYAPP_UPLOAD_STORE_FILE")}")
+            storePassword = keystoreProperties.getProperty("MYAPP_UPLOAD_STORE_PASSWORD") ?: System.getenv("MYAPP_UPLOAD_STORE_PASSWORD")
+            keyAlias = keystoreProperties.getProperty("MYAPP_UPLOAD_KEY_ALIAS") ?: System.getenv("MYAPP_UPLOAD_KEY_ALIAS")
+            keyPassword = keystoreProperties.getProperty("MYAPP_UPLOAD_KEY_PASSWORD") ?: System.getenv("MYAPP_UPLOAD_KEY_PASSWORD")
+        }
+    }
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
