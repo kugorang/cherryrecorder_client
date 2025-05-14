@@ -135,7 +135,7 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
       return _webMapsApiKey;
     } else {
       // 안드로이드/iOS에서는 플랫폼 구현체에 위임
-      if (_isInitialized && _platformImpl != null) {
+      if (_isInitialized) {
         return _platformImpl.getApiKey();
       }
       // 초기화 전이면 빈 문자열 반환
