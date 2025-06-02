@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - k8s
   workflow_dispatch:
 
 jobs:
@@ -114,6 +115,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=k8s-latest,enable=${{ github.ref == 'refs/heads/k8s' }}
+            type=sha,prefix={{branch}}-
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5

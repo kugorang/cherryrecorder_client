@@ -6,7 +6,7 @@ import sys
 import shutil # Not strictly needed if not managing different .dockerignore files
 
 # --- Configuration ---
-APP_IMAGE_TAG = "cherryrecorder-client:latest"
+APP_IMAGE_TAG = "cherryrecorder-client:k8s-latest"
 APP_CONTAINER_NAME = "cherryrecorder-client-container"
 APP_DOCKERFILE = "Dockerfile"
 
