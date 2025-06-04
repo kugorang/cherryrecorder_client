@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - k8s
   workflow_dispatch:
 
 jobs:
@@ -47,7 +46,7 @@ jobs:
 
   deploy_gh_pages:
     needs: check_paths
-    if: needs.check_paths.outputs.gh_pages_changed == 'true' || github.event_name == 'workflow_dispatch'
+    if: (needs.check_paths.outputs.gh_pages_changed == 'true' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -119,7 +118,6 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=k8s-latest,enable=${{ github.ref == 'refs/heads/k8s' }}
             type=sha,prefix={{branch}}-
 
       - name: Build and push Docker image
@@ -131,11 +129,12 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           secrets: |
-            "web_maps_api_key=${{ secrets.GH_PAGES_WEB_MAPS_API_KEY }}"
+            "web_maps_api_key=${{ secrets.WEB_MAPS_API_KEY }}"
           build-args: |
             APP_ENV=${{ vars.APP_ENV || 'prod' }}
             WEB_API_BASE_URL=${{ vars.WEB_API_BASE_URL }}
             CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }}
             BASE_HREF=${{ vars.DOCKER_BASE_HREF || '/cherryrecorder_client/' }}
+            WEB_MAPS_API_KEY=${{ secrets.WEB_MAPS_API_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max 
