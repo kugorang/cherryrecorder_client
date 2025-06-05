@@ -147,5 +147,4 @@ jobs:
           echo ""
           echo "Pull commands:"
           echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:latest"
-          echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:main"
           echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:sha-${GITHUB_SHA::7}" 
