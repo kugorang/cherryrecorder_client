@@ -1,10 +1,10 @@
 import java.util.Properties
 import java.io.FileInputStream
 
-val keystorePropertiesFile = rootProject.file("../keystore.properties") // android/keystore.properties
-val keystoreProperties = java.util.Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties") // android/keystore.properties
+val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 plugins {
@@ -51,10 +51,22 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("${System.getenv("MYAPP_UPLOAD_STORE_FILE_DIR") ?: project.rootDir}/app/${keystoreProperties.getProperty("MYAPP_UPLOAD_STORE_FILE") ?: System.getenv("MYAPP_UPLOAD_STORE_FILE")}")
-            storePassword = keystoreProperties.getProperty("MYAPP_UPLOAD_STORE_PASSWORD") ?: System.getenv("MYAPP_UPLOAD_STORE_PASSWORD")
-            keyAlias = keystoreProperties.getProperty("MYAPP_UPLOAD_KEY_ALIAS") ?: System.getenv("MYAPP_UPLOAD_KEY_ALIAS")
-            keyPassword = keystoreProperties.getProperty("MYAPP_UPLOAD_KEY_PASSWORD") ?: System.getenv("MYAPP_UPLOAD_KEY_PASSWORD")
+            if (keystorePropertiesFile.exists()) {
+                val storeFileName = keystoreProperties.getProperty("MYAPP_UPLOAD_STORE_FILE")
+                val keystoreFile = file("${project.projectDir}/$storeFileName")
+                println("Looking for keystore at: ${keystoreFile.absolutePath}")
+                if (keystoreFile.exists()) {
+                    storeFile = keystoreFile
+                    storePassword = keystoreProperties.getProperty("MYAPP_UPLOAD_STORE_PASSWORD")
+                    keyAlias = keystoreProperties.getProperty("MYAPP_UPLOAD_KEY_ALIAS")
+                    keyPassword = keystoreProperties.getProperty("MYAPP_UPLOAD_KEY_PASSWORD")
+                    println("Keystore found and configured successfully")
+                } else {
+                    println("ERROR: Keystore file not found at: ${keystoreFile.absolutePath}")
+                }
+            } else {
+                println("ERROR: keystore.properties file not found")
+            }
         }
     }
     buildTypes {
