@@ -115,11 +115,7 @@
 
   <script>
     // The value below is injected by flutter build, do not touch.
-    var serviceWorkerVersion = "{{flutter_service_worker_version}}";
-    // Fallback for CI/CD environments where token replacement might fail
-    if (serviceWorkerVersion.indexOf("{{") === 0) {
-      serviceWorkerVersion = Date.now().toString();
-    }
+    const serviceWorkerVersion = "{{flutter_service_worker_version}}";
   </script>
   <!-- This script installs service_worker.js to provide PWA functionality to
        application. For more information, see:

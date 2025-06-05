@@ -76,6 +76,27 @@ jobs:
           --dart-define=WEB_API_BASE_URL=${{ vars.WEB_API_BASE_URL }} \
           --dart-define=CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }}
 
+      - name: Fix serviceWorkerVersion in index.html
+        run: |
+          # 빌드된 index.html 파일 확인
+          echo "Checking build/web/index.html for serviceWorkerVersion..."
+          
+          # 템플릿 토큰이 치환되지 않은 경우를 확인
+          if grep -q '{{flutter_service_worker_version}}' build/web/index.html; then
+            echo "Template token not replaced. Fixing it..."
+            # 타임스탬프 생성
+            TIMESTAMP=$(date +%s)
+            # 템플릿 토큰을 타임스탬프로 대체
+            sed -i "s/{{flutter_service_worker_version}}/$TIMESTAMP/g" build/web/index.html
+            echo "Replaced template token with timestamp: $TIMESTAMP"
+          else
+            echo "serviceWorkerVersion already set by Flutter build."
+          fi
+          
+          # 최종 결과 확인
+          echo "Final serviceWorkerVersion line:"
+          grep -n "serviceWorkerVersion" build/web/index.html | head -1
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
@@ -115,8 +136,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
+        id: docker_build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -132,4 +158,16 @@ jobs:
             CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }}
             BASE_HREF=${{ vars.DOCKER_BASE_HREF || '/cherryrecorder_client/' }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max 
+          cache-to: type=gha,mode=max
+      
+      - name: Print Docker image info
+        run: |
+          echo "Docker image pushed successfully!"
+          echo "Image digest: ${{ steps.docker_build.outputs.digest }}"
+          echo "Image tags:"
+          echo "${{ steps.meta.outputs.tags }}"
+          echo ""
+          echo "Pull commands:"
+          echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:latest"
+          echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:main"
+          echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:sha-${GITHUB_SHA::7}" 
