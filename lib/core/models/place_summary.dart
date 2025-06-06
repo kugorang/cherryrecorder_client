@@ -1,39 +1,91 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+/// 지도에 표시될 장소의 요약 정보를 담는 모델
 class PlaceSummary {
   final String placeId;
   final String name;
-  final String? vicinity;
+  final String vicinity;
   final LatLng location;
+  final List<String> photoReferences; // 사진 참조 목록 추가
 
   PlaceSummary({
     required this.placeId,
     required this.name,
-    this.vicinity,
+    required this.vicinity,
     required this.location,
+    this.photoReferences = const [], // 기본값은 빈 리스트
   });
 
   factory PlaceSummary.fromJson(Map<String, dynamic> json) {
-    // 서버 응답 키(name) 직접 사용, null 가능성 처리
-    final name = json.containsKey('name') ? json['name'] : '이름 없음';
+    // 위치 정보 파싱
+    final locationData = json['location'] as Map<String, dynamic>? ?? {};
+    final lat = locationData['latitude'] as double? ?? 0.0;
+    final lng = locationData['longitude'] as double? ?? 0.0;
 
-    // 서버 응답 키(vicinity) 직접 사용, null 가능성 처리
-    final vicinity = json.containsKey('vicinity') ? json['vicinity'] : null;
+    // 사진 정보 파싱
+    List<String> photos = [];
+    if (json.containsKey('photos') && json['photos'] is List) {
+      final photosData = json['photos'] as List;
+      photos = photosData
+          .map((photo) =>
+              (photo is Map<String, dynamic> && photo.containsKey('name'))
+                  ? photo['name'] as String
+                  : null)
+          .where((ref) => ref != null)
+          .cast<String>()
+          .toList();
+    }
 
-    // location 데이터 유효성 확인 강화
-    double latitude = 0.0;
-    double longitude = 0.0;
-    if (json.containsKey('location') && json['location'] is Map) {
-      latitude = (json['location']['latitude'] ?? 0.0).toDouble();
-      longitude = (json['location']['longitude'] ?? 0.0).toDouble();
+    // 서버 변환 형식과 Google API 원본 형식 모두 지원
+    String placeId = '';
+    String name = '이름 없음';
+    String vicinity = '주소 정보 없음';
+
+    // Place ID 파싱 (서버: placeId, Google: id)
+    if (json.containsKey('placeId')) {
+      placeId = json['placeId'] as String? ?? '';
+    } else if (json.containsKey('id')) {
+      placeId = json['id'] as String? ?? '';
+    }
+
+    // 장소 이름 파싱 (서버: name, Google: displayName.text)
+    if (json.containsKey('name') && json['name'] != null) {
+      name = json['name'] as String;
+    } else if (json.containsKey('displayName') &&
+        json['displayName'] is Map<String, dynamic> &&
+        json['displayName']['text'] != null) {
+      name = json['displayName']['text'] as String;
+    }
+
+    // 주소 파싱 (서버: vicinity, Google: formattedAddress)
+    if (json.containsKey('vicinity') && json['vicinity'] != null) {
+      vicinity = json['vicinity'] as String;
+    } else if (json.containsKey('formattedAddress') &&
+        json['formattedAddress'] != null) {
+      vicinity = json['formattedAddress'] as String;
     }
 
     return PlaceSummary(
-      placeId: (json['placeId'] ?? '') as String, // 서버 응답 키 'placeId' 사용하도록 수정
-      name: name as String, // 서버 응답 키 'name' 사용 결과
-      vicinity: vicinity as String?, // 서버 응답 키 'vicinity' 사용 결과
-      location: LatLng(latitude, longitude),
+      placeId: placeId,
+      name: name,
+      vicinity: vicinity,
+      location: LatLng(lat, lng),
+      photoReferences: photos,
     );
+  }
+
+  /// 상세 화면으로 전달하기 위해 객체를 Map으로 변환
+  Map<String, dynamic> toJson() {
+    return {
+      'id': placeId,
+      'name': name,
+      'address': vicinity,
+      'location': {
+        'latitude': location.latitude,
+        'longitude': location.longitude,
+      },
+      'photos': photoReferences.map((ref) => {'name': ref}).toList(),
+    };
   }
 
   @override
