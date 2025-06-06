@@ -97,6 +97,16 @@ class MockPlaceDetailViewModel extends _i1.Mock
       ) as _i4.Future<bool>);
 
   @override
+  _i4.Future<List<_i3.Memo>> getAllMemosWithTag(String? tag) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #getAllMemosWithTag,
+          [tag],
+        ),
+        returnValue: _i4.Future<List<_i3.Memo>>.value(<_i3.Memo>[]),
+      ) as _i4.Future<List<_i3.Memo>>);
+
+  @override
   void addListener(_i5.VoidCallback? listener) => super.noSuchMethod(
         Invocation.method(
           #addListener,

@@ -19,9 +19,12 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
 
   // API 키 및 URL 변수
   String _webMapsApiKey = '';
-  String _androidApiBaseUrl = 'http://10.0.2.2:8080'; // 안드로이드 에뮬레이터 기본값
-  String _webApiBaseUrl = 'http://localhost:8080';
-  String _serverBaseUrl = '';
+  // --dart-define을 통해 주입된 환경 변수 사용.
+  // 개발 시 localhost를 기본값으로 사용하고, 프로덕션 빌드 시 HTTPS 주소를 주입.
+  final String _serverBaseUrl = const String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8080',
+  );
 
   // 내부 상태 변수
   final Completer<void> _envLoadCompleter = Completer<void>();
@@ -33,7 +36,7 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
   }
 
   GoogleMapsService._internal() {
-    _serverBaseUrl = kIsWeb ? _webApiBaseUrl : _androidApiBaseUrl;
+    // _serverBaseUrl은 final 변수로 선언 시점에 초기화됩니다.
   }
 
   /// 서비스 초기화
@@ -52,13 +55,12 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
 
     try {
       // 직접 전달 받은 환경 변수가 있다면 우선 사용
-      if (webApiBaseUrl != null) _webApiBaseUrl = webApiBaseUrl;
-      if (androidApiBaseUrl != null) _androidApiBaseUrl = androidApiBaseUrl;
+      // 이 로직은 더 이상 필요 없으므로 제거하거나 주석 처리합니다.
+      // if (webApiBaseUrl != null) _webApiBaseUrl = webApiBaseUrl;
+      // if (androidApiBaseUrl != null) _androidApiBaseUrl = androidApiBaseUrl;
       if (webMapsApiKey != null) _webMapsApiKey = webMapsApiKey;
 
-      // 서버 기본 URL 설정
-      _serverBaseUrl = kIsWeb ? _webApiBaseUrl : _androidApiBaseUrl;
-
+      // 서버 기본 URL은 이미 _serverBaseUrl에 설정되어 있습니다.
       _isEnvLoaded = true;
       _envLoadCompleter.complete();
 
@@ -112,13 +114,10 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
       _logger.w('getServerUrl 호출됨 - 환경 설정이 로드되지 않음');
     }
 
-    // isWeb이 명시적으로 제공된 경우에만 해당 값 사용 (테스트 목적)
-    if (isWeb != null) {
-      return isWeb ? _webApiBaseUrl : _androidApiBaseUrl;
-    }
-
-    // 현재 플랫폼에 맞는 URL 반환
-    return kIsWeb ? _webApiBaseUrl : _androidApiBaseUrl;
+    // 이제 단일 소스 _serverBaseUrl만 반환합니다.
+    // 안드로이드 에뮬레이터에서 localhost에 접근하려면 별도의 설정이 필요하지만,
+    // 우선 URL 소스를 단일화합니다.
+    return _serverBaseUrl;
   }
 
   /// API 키 획득 (현재 플랫폼에 맞는 API 키 반환)

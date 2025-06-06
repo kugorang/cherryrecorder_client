@@ -30,9 +30,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.6
+  web_socket_channel: ^2.4.0
+  cupertino_icons: ^1.0.2
   geolocator: ^14.0.0
-  google_maps_flutter: ^2.12.1
+  google_maps_flutter: ^2.10.0
   google_maps_flutter_web: ^0.5.12
   http: ^1.2.0
   sqflite: ^2.4.2
@@ -41,7 +42,7 @@ dependencies:
   flutter_riverpod: ^2.6.1
   flutter_bloc: ^9.1.1
   flutter_native_splash: ^2.4.6
-  flutter_svg: ^2.1.0
+  flutter_svg: ^2.0.10+1
   logger: ^2.1.0
   intl: ^0.20.2
   syncfusion_flutter_charts: ^29.1.40
@@ -57,6 +58,7 @@ dependencies:
   args: ^2.4.2 # CLI 기능에 필수
   permission_handler: ^12.0.0+1 # 위치 권한에 필요
   package_info_plus: ^8.3.0
+  location: ^5.0.3
 
 dev_dependencies:
   flutter_test:

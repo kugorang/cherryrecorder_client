@@ -6,8 +6,11 @@ import 'features/splash/presentation/screens/splash_screen.dart';
 import 'test_api_connection.dart'; // 테스트 스크린 임포트
 import 'features/map/presentation/screens/map_screen.dart'; // 맵 스크린 임포트
 import 'features/place_details/presentation/screens/place_detail_screen.dart'; // 상세 스크린 임포트 추가
+import 'features/place_details/presentation/screens/memos_by_tag_screen.dart'; // 태그별 메모 스크린 임포트 추가
+import 'features/chat/presentation/screens/chat_screen.dart'; // 채팅 스크린 임포트 추가
 import 'package:logger/logger.dart';
 import 'core/services/storage_service.dart'; // 스토리지 서비스 추가
+import 'core/models/memo.dart'; // Memo 모델 임포트 추가
 
 class CherryRecorderApp extends StatefulWidget {
   const CherryRecorderApp({super.key});
@@ -163,6 +166,9 @@ class _CherryRecorderAppState extends State<CherryRecorderApp> {
         case '/map':
           page = const MapScreen();
           break;
+        case '/chat':
+          page = const ChatScreen();
+          break;
         case '/place_detail':
           _logger.d(
             'Arguments type for /place_detail: ${settings.arguments?.runtimeType}',
@@ -179,6 +185,26 @@ class _CherryRecorderAppState extends State<CherryRecorderApp> {
             page = Scaffold(
               appBar: AppBar(title: const Text('오류')),
               body: const Center(child: Text('잘못된 장소 정보입니다.')),
+            );
+          }
+          break;
+        case '/memos_by_tag':
+          // 태그별 메모 화면
+          if (settings.arguments is Map<String, dynamic>) {
+            final args = settings.arguments as Map<String, dynamic>;
+            final tag = args['tag'] as String;
+            final memos = args['memos'] as List<Memo>;
+            page = MemosByTagScreen(
+              tag: tag,
+              memos: memos,
+            );
+          } else {
+            _logger.e(
+              'Invalid arguments type for /memos_by_tag: Expected Map<String, dynamic>, got ${settings.arguments?.runtimeType}',
+            );
+            page = Scaffold(
+              appBar: AppBar(title: const Text('오류')),
+              body: const Center(child: Text('잘못된 태그 정보입니다.')),
             );
           }
           break;
