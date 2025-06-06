@@ -13,8 +13,21 @@ CherryRecorder는 위치 기반으로 개인의 혜택 정보를 기록하고 �
 ### 주요 기능
 
 - 🗺️ **지도 기반 장소 탐색**: Google Maps를 활용한 실시간 주변 장소 확인
+  - 향상된 지도 UI/UX와 부드러운 애니메이션
+  - 장소 목록과 지도 뷰의 동기화된 인터랙션
+  - 카테고리별 필터링 및 검색 기능
 - 📍 **장소 상세 정보**: 선택한 장소의 정보 및 개인 메모 조회
+  - 장소별 메모 카드 시스템
+  - 태그 기반 메모 분류 및 검색
+  - 메모 추가/수정/삭제 화면 개선
 - 📝 **메모 관리**: 장소별 혜택 정보 기록 (추가/수정/삭제)
+  - 향상된 메모 작성 UI
+  - 태그별 메모 조회 기능
+  - 메모 카드 형식의 시각적 표현
+- 💬 **실시간 채팅**: WebSocket 기반 실시간 대화 기능
+  - 채팅방 재진입 버그 수정
+  - 향상된 오류 처리 및 재연결 로직
+  - 실시간 메시지 동기화
 - 🌐 **크로스 플랫폼**: 웹, Android, iOS 지원 (현재 웹과 Android 중점 개발)
 
 ## 🚀 시작하기
@@ -119,13 +132,21 @@ lib/
 ├── core/                     # 핵심 공통 모듈
 │   ├── constants/           # 상수 정의
 │   ├── database/            # 로컬 DB (SQLite/Hive)
-│   ├── models/              # 데이터 모델
+│   ├── models/              # 데이터 모델 (place, memo, place_detail 등)
 │   ├── network/             # API 통신
-│   └── services/            # 공통 서비스
+│   ├── services/            # 공통 서비스
+│   └── utils/               # 유틸리티 (dialog_utils 등)
 └── features/                # 기능별 모듈
+    ├── chat/                # 실시간 채팅
     ├── map/                 # 지도 기능
+    │   ├── presentation/
+    │   │   ├── screens/     # 지도 화면
+    │   │   └── widgets/     # 장소 목록 카드, 상세 시트
     ├── memo_management/     # 메모 관리
     ├── place_details/       # 장소 상세
+    │   ├── presentation/
+    │   │   ├── screens/     # 메모 추가, 태그별 조회
+    │   │   └── widgets/     # 메모 카드
     └── splash/              # 스플래시 화면
 ```
 
