@@ -30,22 +30,27 @@ class Memo {
   @HiveField(7)
   final DateTime updatedAt;
 
+  @HiveField(8)
+  final String? placeName;
+
   Memo({
     String? id,
     required this.placeId,
+    this.placeName,
     required this.latitude,
     required this.longitude,
     required this.content,
     this.tags,
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) : id = id ?? const Uuid().v4(),
-       createdAt = createdAt ?? DateTime.now(),
-       updatedAt = updatedAt ?? DateTime.now();
+  })  : id = id ?? const Uuid().v4(),
+        createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
 
   Memo copyWith({
     String? id,
     String? placeId,
+    String? placeName,
     double? latitude,
     double? longitude,
     String? content,
@@ -56,6 +61,7 @@ class Memo {
     return Memo(
       id: id ?? this.id,
       placeId: placeId ?? this.placeId,
+      placeName: placeName ?? this.placeName,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       content: content ?? this.content,
@@ -69,6 +75,7 @@ class Memo {
     return {
       'id': id,
       'placeId': placeId,
+      'placeName': placeName,
       'latitude': latitude,
       'longitude': longitude,
       'content': content,
@@ -96,6 +103,7 @@ class Memo {
     return Memo(
       id: json['id'] as String?,
       placeId: json['placeId'] as String,
+      placeName: json['placeName'] as String?,
       latitude: parseSafeDouble(json['latitude']),
       longitude: parseSafeDouble(json['longitude']),
       content: json['content'] as String,
@@ -110,6 +118,7 @@ class Memo {
     return {
       DatabaseHelper.columnId: id,
       DatabaseHelper.columnPlaceId: placeId,
+      'placeName': placeName,
       DatabaseHelper.columnContent: content,
       DatabaseHelper.columnTags: tags,
       DatabaseHelper.columnCreatedAt: createdAt.toIso8601String(),
@@ -142,23 +151,22 @@ class Memo {
     return Memo(
       id: map[DatabaseHelper.columnId] as String?,
       placeId: map[DatabaseHelper.columnPlaceId] as String,
+      placeName: map['placeName'] as String?,
       latitude: latitude,
       longitude: longitude,
       content: map[DatabaseHelper.columnContent] as String,
       tags: map[DatabaseHelper.columnTags] as String?,
-      createdAt:
-          map[DatabaseHelper.columnCreatedAt] != null
-              ? DateTime.parse(map[DatabaseHelper.columnCreatedAt] as String)
-              : DateTime.now(),
-      updatedAt:
-          map[DatabaseHelper.columnUpdatedAt] != null
-              ? DateTime.parse(map[DatabaseHelper.columnUpdatedAt] as String)
-              : DateTime.now(),
+      createdAt: map[DatabaseHelper.columnCreatedAt] != null
+          ? DateTime.parse(map[DatabaseHelper.columnCreatedAt] as String)
+          : DateTime.now(),
+      updatedAt: map[DatabaseHelper.columnUpdatedAt] != null
+          ? DateTime.parse(map[DatabaseHelper.columnUpdatedAt] as String)
+          : DateTime.now(),
     );
   }
 
   @override
   String toString() {
-    return 'Memo{id: $id, placeId: $placeId, latitude: $latitude, longitude: $longitude, content: $content, tags: $tags, createdAt: $createdAt, updatedAt: $updatedAt}';
+    return 'Memo{id: $id, placeId: $placeId, placeName: $placeName, latitude: $latitude, longitude: $longitude, content: $content, tags: $tags, createdAt: $createdAt, updatedAt: $updatedAt}';
   }
 }

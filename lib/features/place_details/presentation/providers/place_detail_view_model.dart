@@ -113,4 +113,19 @@ class PlaceDetailViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<List<Memo>> getAllMemosWithTag(String tag) async {
+    try {
+      // 모든 메모를 가져온 후 태그로 필터링
+      final allMemos = await StorageService.instance.getAllMemos();
+      return allMemos.where((memo) {
+        if (memo.tags == null || memo.tags!.isEmpty) return false;
+        final tags = memo.tags!.split(' ').map((t) => t.trim()).toList();
+        return tags.contains(tag);
+      }).toList();
+    } catch (e) {
+      _logger.e('태그별 메모 조회 오류 (tag: $tag):', error: e);
+      return [];
+    }
+  }
 }
