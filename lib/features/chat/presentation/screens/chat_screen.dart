@@ -27,69 +27,80 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _hasShownNicknameDialog = false; // 닉네임 다이얼로그 표시 여부
 
-  // --- 서버 주소 및 포트 설정 (dart-define 사용) ---
-  // compile-time constant로 선언
-  static const String _chatServerIpFromEnv = String.fromEnvironment(
-    'CHAT_SERVER_IP',
+  // --- 서버 주소 및 포트 설정 ---
+  static const String _chatServerUrlFromEnv = String.fromEnvironment(
+    'CHAT_SERVER_IP', // 변수명이 IP이지만 URL 전체를 받을 수 있음
     defaultValue: '',
-  );
-
-  // 실제 사용할 서버 IP (runtime에 결정)
-  late final String _chatServerIp;
-
-  static const int _chatServerPort = int.fromEnvironment(
-    'CHAT_SERVER_PORT',
-    defaultValue: 33334, // WS 포트 (기본값)
   );
 
   static const bool _useSecureWebSocket = bool.fromEnvironment(
     'USE_WSS',
-    defaultValue: false, // 개발 환경에서는 기본적으로 WS 사용 (프로덕션에서는 true로 설정)
+    defaultValue: false,
   );
+
+  // WSS 사용 여부에 따라 기본 포트를 다르게 설정
+  static const int _defaultChatServerPort = _useSecureWebSocket ? 33335 : 33334;
   // ------------------------------------------------
+
+  // State 멤버 변수로 IP와 포트를 저장하여 위젯 트리 전체에서 접근 가능하도록 함
+  late final String _chatServerIp;
+  late final int _chatServerPort;
 
   @override
   void initState() {
     super.initState();
     _chatViewModel = context.read<ChatViewModel>();
 
-    // 환경 변수가 설정되어 있으면 사용, 아니면 플랫폼별 기본값 사용
-    if (_chatServerIpFromEnv.isNotEmpty) {
-      _chatServerIp = _chatServerIpFromEnv;
+    // 환경 변수 파싱 로직을 initState에서 한 번만 수행
+    // 환경 변수(_chatServerUrlFromEnv)가 제공되었는지 확인
+    if (_chatServerUrlFromEnv.isNotEmpty) {
+      // URL에서 프로토콜(http, https)을 제거
+      final urlWithoutProtocol = _chatServerUrlFromEnv
+          .replaceAll('https://', '')
+          .replaceAll('http://', '');
+
+      // ':'를 기준으로 호스트와 포트를 분리
+      final parts = urlWithoutProtocol.split(':');
+      _chatServerIp = parts.first; // 첫 번째 부분은 IP 또는 호스트
+
+      if (parts.length > 1) {
+        // 포트 번호가 있으면 파싱해서 사용
+        _chatServerPort = int.tryParse(parts[1]) ?? _defaultChatServerPort;
+      } else {
+        // 포트 번호가 없으면 기본 포트 사용
+        _chatServerPort = _defaultChatServerPort;
+      }
     } else {
-      // 플랫폼별 기본 IP 설정
+      // 환경 변수가 없을 때 플랫폼별 기본값 설정
       if (kIsWeb) {
         _chatServerIp = 'localhost';
       } else {
-        // 네이티브 플랫폼에서만 Platform 클래스 사용
         try {
           _chatServerIp = Platform.isAndroid ? '10.0.2.2' : 'localhost';
         } catch (e) {
-          // Platform 사용 실패 시 기본값
           _chatServerIp = 'localhost';
         }
       }
+      _chatServerPort = _defaultChatServerPort;
     }
 
     _logger.i(
       'Connecting to Chat Server: $_chatServerIp:$_chatServerPort',
-    ); // 로그 추가
+    );
 
     _chatViewModel.addListener(_scrollToBottom);
     _chatViewModel.addListener(_checkConnectionStatus);
 
-    // 화면 시작 시 서버 연결 시도 및 현재 상태 확인
+    // 화면 시작 시 서버 연결 시도
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _chatViewModel.connect(_chatServerIp, _chatServerPort,
-          useSecure: _useSecureWebSocket);
-      _checkConnectionStatus(); // 재진입 시 이미 연결된 상태일 수 있으므로 즉시 확인
+      _tryConnect();
+      _checkConnectionStatus();
     });
   }
 
   @override
   void dispose() {
-    // 화면 종료 시 ViewModel 리스너 제거
     _chatViewModel.removeListener(_scrollToBottom);
     _chatViewModel.removeListener(_checkConnectionStatus);
     _messageController.dispose();
@@ -97,9 +108,17 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  /// 서버 연결을 시도하는 메서드
+  void _tryConnect() {
+    _chatViewModel.connect(
+      _chatServerIp,
+      _chatServerPort,
+      useSecure: _useSecureWebSocket,
+    );
+  }
+
   /// 메시지 목록의 맨 아래로 스크롤한다.
   void _scrollToBottom() {
-    // 약간의 딜레이 후 스크롤해야 최신 메시지가 렌더링된 후 이동됨
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -113,13 +132,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// 연결 상태를 확인하고 필요시 닉네임 설정 다이얼로그를 표시한다.
   void _checkConnectionStatus() {
-    // 위젯이 아직 마운트 상태이고, 연결되었으며, 다이얼로그가 표시된 적 없고, 닉네임이 없을 때
     if (mounted &&
         _chatViewModel.connectionStatus == ChatConnectionStatus.connected &&
         !_hasShownNicknameDialog &&
         _chatViewModel.nickname == null) {
-      _hasShownNicknameDialog = true; // 다이얼로그가 표시되었음을 기록
-      // build life-cycle 중에 UI를 업데이트하지 않도록 microtask로 예약
+      _hasShownNicknameDialog = true;
       Future.microtask(() {
         if (mounted) {
           _showNicknameDialog();
@@ -135,7 +152,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return showDialog<void>(
       context: context,
-      barrierDismissible: false, // 다이얼로그 밖 클릭으로 닫기 비활성화
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('닉네임 설정'),
@@ -152,8 +169,8 @@ class _ChatScreenState extends State<ChatScreen> {
             TextButton(
               child: const Text('취소'),
               onPressed: () {
-                Navigator.of(context).pop(); // 다이얼로그 닫기
-                Navigator.of(context).pop(); // 채팅 화면 닫고 맵으로 돌아가기
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
               },
             ),
             TextButton(
@@ -176,22 +193,18 @@ class _ChatScreenState extends State<ChatScreen> {
   void _sendMessage() {
     if (_messageController.text.isNotEmpty) {
       _chatViewModel.sendMessage(_messageController.text);
-      _messageController.clear(); // 입력창 비우기
+      _messageController.clear();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ViewModel 상태 변화 감지
     final chatViewModel = context.watch<ChatViewModel>();
 
-    // 오류 발생 시 다이얼로그 표시
     if (chatViewModel.errorMessage != null) {
-      // 위젯 빌드가 완료된 후에 다이얼로그를 표시하기 위해 addPostFrameCallback 사용
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           showApiErrorDialog(context, message: chatViewModel.errorMessage!);
-          // 다이얼로그가 다시 표시되지 않도록 ViewModel의 오류 상태를 초기화
           chatViewModel.clearErrorMessage();
         }
       });
@@ -202,9 +215,7 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Text(_chatViewModel.nickname != null
             ? '채팅 - ${_chatViewModel.nickname}'
             : '채팅'),
-        // 연결 상태 표시 (선택적)
         actions: [
-          // 닉네임 변경 버튼
           IconButton(
             icon: const Icon(Icons.person_outline),
             tooltip: '닉네임 변경',
@@ -216,11 +227,9 @@ class _ChatScreenState extends State<ChatScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Icon(
-              // isConnected -> connectionStatus 체크
               chatViewModel.connectionStatus == ChatConnectionStatus.connected
                   ? Icons.wifi
                   : Icons.wifi_off,
-              // isConnected -> connectionStatus 체크
               color: chatViewModel.connectionStatus ==
                       ChatConnectionStatus.connected
                   ? Colors.green
@@ -231,9 +240,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // 연결 상태 배너
           _buildConnectionStatusBanner(),
-          // 메시지 목록 영역
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -241,22 +248,17 @@ class _ChatScreenState extends State<ChatScreen> {
               itemCount: chatViewModel.messages.length,
               itemBuilder: (context, index) {
                 final message = chatViewModel.messages[index];
-                // 각 메시지를 ChatMessageWidget으로 표시
                 return ChatMessageWidget(
                   message: message,
-                  // currentUserNickname prop 제거 (isMine 사용)
                 );
               },
             ),
           ),
-          // 로딩 인디케이터 (연결 중)
-          // isConnecting -> connectionStatus 체크
           if (chatViewModel.connectionStatus == ChatConnectionStatus.connecting)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8.0),
               child: CircularProgressIndicator(),
             ),
-          // 메시지 입력 영역
           _buildMessageInputArea(),
         ],
       ),
@@ -268,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatViewModel = context.watch<ChatViewModel>();
 
     if (chatViewModel.connectionStatus == ChatConnectionStatus.connected) {
-      return const SizedBox.shrink(); // 연결된 경우 배너 숨김
+      return const SizedBox.shrink();
     }
 
     Color backgroundColor;
@@ -311,10 +313,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           if (chatViewModel.connectionStatus != ChatConnectionStatus.connecting)
             TextButton(
-              onPressed: () {
-                _chatViewModel.connect(_chatServerIp, _chatServerPort,
-                    useSecure: _useSecureWebSocket);
-              },
+              onPressed: _tryConnect, // 재연결 시도
               child: const Text('재연결'),
             ),
         ],
@@ -324,7 +323,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// 하단 메시지 입력 영역 위젯 빌드.
   Widget _buildMessageInputArea() {
-    // ViewModel 상태 변화 감지 (버튼 활성화 등에 사용)
     final chatViewModel = context.watch<ChatViewModel>();
 
     return Container(
@@ -333,22 +331,19 @@ class _ChatScreenState extends State<ChatScreen> {
       child: SafeArea(
         child: Row(
           children: [
-            // 텍스트 입력 필드
             Expanded(
               child: TextField(
                 controller: _messageController,
                 decoration: const InputDecoration.collapsed(
                   hintText: '메시지 입력...',
                 ),
-                textInputAction: TextInputAction.send, // 키보드 엔터키 '보내기'로 변경
-                onSubmitted: (_) => _sendMessage(), // 엔터 입력 시 메시지 전송
-                maxLines: null, // 여러 줄 입력 가능
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _sendMessage(),
+                maxLines: null,
               ),
             ),
-            // 전송 버튼 (연결되었을 때만 활성화)
             IconButton(
               icon: const Icon(Icons.send),
-              // 연결 상태 확인하여 버튼 활성화/비활성화
               onPressed: chatViewModel.connectionStatus ==
                       ChatConnectionStatus.connected
                   ? _sendMessage

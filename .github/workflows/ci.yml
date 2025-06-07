@@ -74,7 +74,8 @@ jobs:
           --dart-define=APP_ENV=${{ vars.APP_ENV || 'prod' }} \
           --dart-define=WEB_MAPS_API_KEY=${{ secrets.GH_PAGES_WEB_MAPS_API_KEY }} \
           --dart-define=WEB_API_BASE_URL=${{ vars.WEB_API_BASE_URL }} \
-          --dart-define=CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }}
+          --dart-define=CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }} \
+          --dart-define=USE_WSS=true
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -135,6 +136,7 @@ jobs:
             WEB_API_BASE_URL=${{ vars.WEB_API_BASE_URL }}
             CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }}
             BASE_HREF=${{ vars.DOCKER_BASE_HREF || '/cherryrecorder_client/' }}
+            USE_WSS=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
