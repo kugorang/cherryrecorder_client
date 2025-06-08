@@ -1,3 +1,17 @@
+/// Google Maps 관련 서비스의 동작을 정의하는 인터페이스(추상 클래스) 파일입니다.
+///
+/// 이 파일은 웹과 모바일(네이티브) 환경에서 Google Maps를 사용하는 방식이 다르기 때문에,
+/// 플랫폼별 구현의 차이를 숨기고 일관된 API를 제공하기 위해 설계되었습니다.
+///
+/// **주요 역할:**
+/// - `GoogleMapsServiceInterface` 추상 클래스를 통해 플랫폼 공통 기능을 정의합니다.
+/// - 팩토리 함수 `getWebImplementation`, `getMobileImplementation`을 제공하여
+///   실행 환경에 맞는 서비스 구현체를 생성하고 반환합니다.
+///
+/// 이를 통해 `GoogleMapsService`는 실제 구현에 대해 알 필요 없이
+/// 이 인터페이스에만 의존하여 동작할 수 있습니다. (의존성 역전 원칙)
+library;
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -9,44 +23,36 @@ import 'google_maps_service_mobile.dart';
 import 'google_maps_service_web.dart'
     if (dart.library.io) 'google_maps_service_stub.dart';
 
-/// Google Maps 서비스의 인터페이스.
+/// `GoogleMapsService`가 구현해야 할 기능을 정의한 추상 클래스입니다.
 ///
-/// 이 인터페이스는 웹과 네이티브 환경 각각에 대한 Google Maps 관련 기능의
-/// 추상화를 제공한다. 플랫폼별 구현체는 이 인터페이스를 따라야 한다.
+/// 플랫폼(웹, 모바일)에 따라 다른 방식으로 처리되어야 하는 지도 관련 로직을
+/// 추상화하여, 서비스의 나머지 부분에서는 플랫폼에 구애받지 않고
+/// 일관된 방식으로 지도를 다룰 수 있도록 합니다.
 abstract class GoogleMapsServiceInterface {
-  /// Google Maps 서비스를 초기화한다.
+  /// Google Maps 서비스를 초기화합니다.
   ///
-  /// 플랫폼별 설정을 수행하고 필요한 API 키 등을 설정한다.
-  /// 웹 환경에서는 [webMapsApiKey]를 사용하고, 네이티브 환경에서는
-  /// 내부적으로 설정된 키나 [androidApiBaseUrl] 등을 사용할 수 있다.
+  /// 플랫폼에 따라 필요한 API 키 설정, 스크립트 로딩 등 사전 준비 작업을 수행합니다.
   ///
-  /// * [webApiBaseUrl]: 웹 환경에서 사용할 API 기본 URL (선택 사항).
-  /// * [androidApiBaseUrl]: 안드로이드 환경에서 사용할 API 기본 URL (선택 사항).
-  /// * [webMapsApiKey]: 웹 환경에서 사용할 Google Maps API 키 (선택 사항).
-  ///
-  /// 초기화 실패 시 [Exception]을 던질 수 있다.
+  /// [webApiBaseUrl] : 웹 환경에서 사용할 백엔드 API의 기본 URL입니다.
+  /// [androidApiBaseUrl] : 안드로이드 환경에서 사용할 백엔드 API의 기본 URL입니다.
+  /// [webMapsApiKey] : 웹 환경에서 Google Maps JavaScript API를 사용하기 위한 API 키입니다.
   Future<void> initialize({
     String? webApiBaseUrl,
     String? androidApiBaseUrl,
     String? webMapsApiKey,
   });
 
-  /// 플랫폼에 맞는 지도 위젯을 생성하여 반환한다.
+  /// 현재 플랫폼에 맞는 지도 위젯을 생성하여 반환합니다.
   ///
-  /// * [initialPosition]: 지도의 초기 중심 좌표.
-  /// * [initialZoom]: 지도의 초기 확대/축소 레벨 (기본값: 14.0).
-  /// * [onMapCreated]: 지도가 생성된 후 호출될 콜백.
-  /// * [markers]: 지도에 표시할 마커 세트 (기본값: 비어 있음).
-  /// * [myLocationEnabled]: 현재 위치 표시 활성화 여부 (기본값: false).
-  /// * [myLocationButtonEnabled]: 현재 위치 버튼 표시 활성화 여부 (기본값: false).
-  /// * [zoomControlsEnabled]: 확대/축소 컨트롤 표시 활성화 여부 (기본값: true).
-  /// * [compassEnabled]: 나침반 표시 활성화 여부 (기본값: true).
-  /// * [onTap]: 지도를 탭했을 때 호출될 콜백.
-  /// * [onCameraMove]: 카메라가 이동할 때 호출될 콜백.
-  /// * [onCameraIdle]: 카메라 이동이 멈췄을 때 호출될 콜백.
-  /// * [padding]: 지도 주변의 패딩 (기본값: EdgeInsets.zero).
+  /// 네이티브에서는 `GoogleMap` 위젯을, 웹에서는 웹뷰나 JS interop을 통해
+  /// 렌더링된 지도를 위젯 형태로 반환할 수 있습니다.
   ///
-  /// 반환값: 생성된 지도 [Widget].
+  /// [initialPosition] : 지도가 처음 표시될 때의 중심 좌표입니다.
+  /// [onMapCreated] : 지도 컨트롤러가 준비되었을 때 호출될 콜백 함수입니다.
+  /// [markers] : 지도 위에 표시될 마커들의 집합입니다.
+  /// [padding] : 지도 UI 요소(예: 현재위치 버튼)가 가려지지 않도록 지도 내부에 적용할 여백입니다.
+  ///
+  /// 이 외의 파라미터들은 `google_maps_flutter` 패키지의 `GoogleMap` 위젯과 동일한 역할을 합니다.
   Widget createMap({
     required LatLng initialPosition,
     double initialZoom = 14.0,
@@ -62,21 +68,19 @@ abstract class GoogleMapsServiceInterface {
     EdgeInsets padding = EdgeInsets.zero,
   });
 
-  /// 현재 서비스 인스턴스에 설정된 API 키를 반환한다.
-  ///
-  /// 반환값: API 키 문자열.
+  /// 현재 서비스 인스턴스에 설정된 Google Maps API 키를 반환합니다.
   String getApiKey();
 
-  /// 현재 서비스 인스턴스에 설정된 서버 URL을 반환한다.
+  /// 현재 실행 환경에 맞는 백엔드 서버의 기본 URL을 반환합니다.
   ///
-  /// 주로 네이티브 환경에서 사용될 수 있으며, 웹 환경에서는 빈 문자열을 반환할 수 있다.
-  /// * [isWeb]: 웹 환경 여부를 명시적으로 지정할 때 사용 (선택 사항).
-  ///
-  /// 반환값: 서버 URL 문자열.
+  /// [isWeb] : 현재 플랫폼이 웹인지 명시적으로 지정할 때 사용됩니다.
   String getServerUrl({bool? isWeb});
 }
 
-// 웹 구현체 가져오기
+/// 웹 환경에 맞는 `GoogleMapsServiceInterface` 구현체를 생성하여 반환합니다.
+///
+/// [logger], [webMapsLoadedCompleter], [mapsApiKey]는 `GoogleMapsServiceWeb`의
+/// 생성에 필요한 의존성들입니다.
 GoogleMapsServiceInterface getWebImplementation({
   required Logger logger,
   required Completer<bool> webMapsLoadedCompleter,
@@ -92,7 +96,10 @@ GoogleMapsServiceInterface getWebImplementation({
   );
 }
 
-// 모바일 구현체 가져오기
+/// 모바일(안드로이드, iOS) 환경에 맞는 `GoogleMapsServiceInterface` 구현체를 생성하여 반환합니다.
+///
+/// [logger], [webMapsLoadedCompleter], [envLoadCompleter]는 `GoogleMapsServiceMobile`의
+/// 생성에 필요한 의존성들입니다.
 GoogleMapsServiceInterface getMobileImplementation({
   required Logger logger,
   required Completer<bool> webMapsLoadedCompleter,

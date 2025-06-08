@@ -1,3 +1,17 @@
+/// 지도와 주변 장소 목록을 표시하는 메인 화면입니다.
+///
+/// `ChangeNotifierProvider`를 통해 `MapViewModel`의 상태 변화를 구독하고,
+/// UI를 동적으로 업데이트합니다. 사용자의 상호작용(지도 이동, 검색, 목록 선택 등)을
+/// `MapViewModel`에 전달하여 비즈니스 로직을 처리하도록 합니다.
+///
+/// **주요 기능:**
+/// - Google 지도 표시 및 현재 위치 기능
+/// - 지도 위에 주변 장소들을 마커로 표시
+/// - 하단에 주변 장소들을 리스트로 표시
+/// - 지도와 리스트 간의 상호작용 (마커 선택 시 리스트 스크롤, 리스트 선택 시 지도 이동)
+/// - 장소 검색 기능
+library;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -6,7 +20,7 @@ import '../../../../core/models/place_summary.dart';
 import '../providers/map_view_model.dart';
 import '../widgets/place_list_card.dart';
 
-/// 지도 화면 (ViewModel 기반)
+/// 지도와 장소 목록을 표시하는 메인 화면 위젯입니다.
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -17,13 +31,18 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final _searchController = TextEditingController();
   final _listScrollController = ScrollController();
+
+  /// 리스트 자동 스크롤의 중복 실행을 방지하기 위해 마지막으로 스크롤된 장소 ID를 저장합니다.
   String? _lastScrolledPlaceId;
+
+  /// 화면이 처음 빌드될 때 초기화 로직을 한 번만 실행하기 위한 플래그입니다.
   bool _isInitializing = true;
 
   @override
   void initState() {
     super.initState();
-    // 초기화는 build 메서드에서 처리
+    // initState에서는 context를 사용할 수 없으므로, 초기화 로직은 build 메서드 내에서
+    // `WidgetsBinding.instance.addPostFrameCallback`을 사용하여 처리합니다.
   }
 
   @override
@@ -35,102 +54,56 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Provider.watch를 사용하여 MapViewModel의 변경사항을 구독합니다.
     final mapViewModel = context.watch<MapViewModel>();
     final places = mapViewModel.placesToShow;
 
-    // 초기화 로직 - 최초 1회만 실행
-    if (_isInitializing && !mapViewModel.isLoading) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
+    // --- 위젯 빌드 후 실행되는 콜백 ---
+    // 이 콜백들은 UI가 그려진 후에 안전하게 실행됩니다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 앱 시작 후 첫 프레임에서만 초기화 로직을 실행합니다.
+      if (_isInitializing && mounted) {
         setState(() {
           _isInitializing = false;
         });
-        // 위치 권한 요청 및 초기화
-        await mapViewModel.initializeAndFetchCurrentLocation();
-      });
-    }
+        mapViewModel.initializeAndFetchCurrentLocation();
+      }
 
-    // 선택된 장소가 변경되면 목록 스크롤
-    if (mapViewModel.selectedPlaceId != null &&
-        mapViewModel.selectedPlaceId != _lastScrolledPlaceId) {
-      _lastScrolledPlaceId = mapViewModel.selectedPlaceId;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final index =
-            places.indexWhere((p) => p.placeId == mapViewModel.selectedPlaceId);
-        if (index != -1 && _listScrollController.hasClients) {
-          // 아이템의 예상 높이
-          // 선택되지 않은 아이템: padding(24) + avatar(40) + gap(4) + 여백 = 약 72
-          // 선택된 아이템: 72 + gap(8) + button(40) = 약 120
-          const unselectedItemHeight = 72.0;
-          const selectedItemHeight = 120.0;
-
-          // 리스트뷰의 가시 영역 높이
-          final viewportHeight =
-              _listScrollController.position.viewportDimension;
-
-          // 선택된 아이템까지의 누적 높이 계산
-          double cumulativeHeight = 0;
-          for (int i = 0; i < index; i++) {
-            cumulativeHeight += unselectedItemHeight;
-          }
-
-          // 선택된 아이템을 뷰포트 중앙에 위치시키기
-          // 선택된 아이템의 중심 = cumulativeHeight + (selectedItemHeight / 2)
-          // 뷰포트 중심에서 아이템 중심까지의 거리를 빼면 스크롤 위치
-          final itemCenter = cumulativeHeight + (selectedItemHeight / 2);
-          final viewportCenter = viewportHeight / 2;
-          final targetOffset = itemCenter - viewportCenter;
-
-          // 최대/최소 스크롤 범위 내로 제한
-          final maxScrollExtent =
-              _listScrollController.position.maxScrollExtent;
-          final scrollToOffset = targetOffset.clamp(0.0, maxScrollExtent);
-
-          _listScrollController.animateTo(
-            scrollToOffset,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeInOut,
-          );
-        }
-      });
-    } else if (mapViewModel.selectedPlaceId == null) {
-      // 선택이 해제되면 추적 ID도 초기화
-      _lastScrolledPlaceId = null;
-    }
+      // ViewModel에서 선택된 장소가 변경되었을 때, 해당 장소가 보이도록 리스트를 스크롤합니다.
+      _maybeScrollToSelectedPlace(mapViewModel, places);
+    });
 
     return Scaffold(
       appBar: AppBar(
         title: _buildSearchBar(mapViewModel),
-        // 다른 AppBar 속성들...
+        // AppBar의 그림자를 없애고 지도와 경계가 없어 보이게 합니다.
+        elevation: 0,
       ),
-      // Stack을 사용하여 body 위에 로딩 인디케이터를 오버레이
       body: Stack(
         children: [
+          // 메인 콘텐츠 (지도 + 리스트)
           Column(
             children: [
-              // 상단: 지도 영역
               Expanded(
-                flex: 3, // 지도가 더 많은 공간을 차지하도록 설정
+                flex: 3, // 지도 영역이 3의 비율을 가집니다.
                 child: _buildGoogleMap(mapViewModel),
               ),
-              // 하단: 장소 목록 영역
               Expanded(
-                flex: 2,
+                flex: 2, // 리스트 영역이 2의 비율을 가집니다.
                 child: _buildPlaceList(context, mapViewModel, places),
               ),
             ],
           ),
-          // 로딩 인디케이터
-          if (mapViewModel.isLoading)
+          // 로딩 오버레이: ViewModel의 isLoading 상태에 따라 표시됩니다.
+          if (mapViewModel.isLoading && !_isInitializing)
             Container(
-              color: Colors.black.withAlpha(128), // withOpacity 대체
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(child: CircularProgressIndicator()),
             ),
-          // 초기화 중 메시지
+          // 초기화 로딩 오버레이: 권한 요청 등 초기 작업 중에 표시됩니다.
           if (_isInitializing)
             Container(
-              color: Colors.white.withAlpha(240),
+              color: Colors.white.withOpacity(0.9),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -141,21 +114,18 @@ class _MapScreenState extends State<MapScreen> {
                       '위치 권한을 확인하고 있습니다...',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '권한을 허용하면 주변 장소를 찾아드립니다',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
                   ],
                 ),
               ),
             ),
         ],
       ),
+      // 커스텀 버튼들을 지도 위에 띄우기 위해 FloatingActionButton 관련 속성은 여기서 사용하지 않습니다.
+      // 대신 _buildGoogleMap 내부의 Stack 위젯을 사용합니다.
     );
   }
 
-  /// 상단 검색 바 위젯 생성
+  /// 상단의 장소 검색 바 위젯을 빌드합니다.
   Widget _buildSearchBar(MapViewModel viewModel) {
     return TextField(
       controller: _searchController,
@@ -186,7 +156,7 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// 구글맵 위젯 생성
+  /// Google Map 위젯과 그 위에 표시될 커스텀 버튼들을 빌드합니다.
   Widget _buildGoogleMap(MapViewModel mapViewModel) {
     return Stack(
       children: [
@@ -195,13 +165,11 @@ class _MapScreenState extends State<MapScreen> {
             target: mapViewModel.currentMapCenter,
             zoom: 15,
           ),
-          onMapCreated: (controller) {
-            mapViewModel.setMapController(controller);
-          },
+          onMapCreated: mapViewModel.setMapController,
           markers: mapViewModel.markers,
           myLocationEnabled: true,
-          myLocationButtonEnabled: false, // 커스텀 버튼 사용을 위해 비활성화
-          zoomControlsEnabled: false, // 줌 컨트롤 비활성화
+          myLocationButtonEnabled: false, // 커스텀 버튼을 사용하므로 비활성화
+          zoomControlsEnabled: false,
           compassEnabled: true, // 나침반 활성화
           // 지도 UI 요소들의 위치 조정을 위한 패딩 설정
           padding: const EdgeInsets.only(
@@ -215,58 +183,45 @@ class _MapScreenState extends State<MapScreen> {
             // mapViewModel.onCameraIdle(position.target);
           },
           onCameraIdle: () async {
-            // 이동이 멈추면 최종 위치로 검색
+            // 카메라 이동이 멈추면, 현재 보이는 영역의 중심 좌표를 계산하여
+            // ViewModel에 알리고 주변 장소를 다시 검색하도록 합니다.
             if (mapViewModel.mapControllerReady) {
-              final LatLng center = await (mapViewModel.mapController!
-                  .getVisibleRegion()
-                  .then((region) => LatLng(
-                        (region.northeast.latitude +
-                                region.southwest.latitude) /
-                            2,
-                        (region.northeast.longitude +
-                                region.southwest.longitude) /
-                            2,
-                      )));
+              final bounds =
+                  await mapViewModel.mapController!.getVisibleRegion();
+              final center = LatLng(
+                (bounds.northeast.latitude + bounds.southwest.latitude) / 2,
+                (bounds.northeast.longitude + bounds.southwest.longitude) / 2,
+              );
               mapViewModel.onCameraIdle(center);
             }
           },
         ),
-        // GPS 버튼 (우측 상단)
+        // 현재 위치로 이동하는 커스텀 GPS 버튼
         Positioned(
           top: 16,
           right: 16,
           child: FloatingActionButton(
             mini: true,
             heroTag: 'gps_button',
-            backgroundColor: Colors.white,
-            elevation: 4,
-            onPressed: () async {
-              // 현재 위치로 이동
-              await mapViewModel.initializeAndFetchCurrentLocation();
-            },
-            child: const Icon(Icons.my_location, color: Colors.black87),
+            onPressed: mapViewModel.initializeAndFetchCurrentLocation,
+            child: const Icon(Icons.my_location),
           ),
         ),
-        // 채팅 버튼 (좌측 하단 - 나침반과 겹치지 않음)
+        // 채팅 화면으로 이동하는 커스텀 버튼
         Positioned(
           bottom: 24,
           left: 16,
           child: FloatingActionButton(
             heroTag: 'chat_button',
-            backgroundColor: Theme.of(context).primaryColor,
-            elevation: 4,
-            onPressed: () {
-              // 채팅 화면으로 이동
-              Navigator.pushNamed(context, '/chat');
-            },
-            child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+            onPressed: () => Navigator.pushNamed(context, '/chat'),
+            child: const Icon(Icons.chat_bubble_outline),
           ),
         ),
       ],
     );
   }
 
-  /// 하단 장소 목록 리스트 위젯 생성
+  /// 하단의 장소 목록 리스트 위젯을 빌드합니다.
   Widget _buildPlaceList(
       BuildContext context, MapViewModel viewModel, List<PlaceSummary> places) {
     if (viewModel.errorMessage != null && places.isEmpty) {
@@ -298,5 +253,42 @@ class _MapScreenState extends State<MapScreen> {
         );
       },
     );
+  }
+
+  /// 선택된 장소가 화면에 보이도록 리스트를 스크롤하는 로직입니다.
+  void _maybeScrollToSelectedPlace(
+      MapViewModel mapViewModel, List<PlaceSummary> places) {
+    final selectedId = mapViewModel.selectedPlaceId;
+    if (selectedId == null || selectedId == _lastScrolledPlaceId) return;
+
+    _lastScrolledPlaceId = selectedId;
+    final index = places.indexWhere((p) => p.placeId == selectedId);
+
+    if (index != -1 && _listScrollController.hasClients) {
+      // 선택된 아이템의 크기와 위치를 고려하여 스크롤할 offset을 계산합니다.
+      // 아이템이 리스트 뷰의 중앙에 오도록 계산합니다.
+      const unselectedItemHeight = 72.0;
+      const selectedItemHeight = 120.0;
+      final viewportHeight = _listScrollController.position.viewportDimension;
+
+      double cumulativeHeight = 0;
+      for (int i = 0; i < index; i++) {
+        cumulativeHeight +=
+            (places[i].placeId == mapViewModel.selectedPlaceIdBeforeChange
+                ? selectedItemHeight
+                : unselectedItemHeight);
+      }
+
+      final targetOffset =
+          cumulativeHeight + (selectedItemHeight / 2) - (viewportHeight / 2);
+
+      _listScrollController.animateTo(
+        targetOffset.clamp(0.0, _listScrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    } else if (selectedId == null) {
+      _lastScrolledPlaceId = null;
+    }
   }
 }

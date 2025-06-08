@@ -1,3 +1,16 @@
+/// 지도 화면의 상태와 비즈니스 로직을 관리하는 ViewModel 클래스입니다.
+///
+/// `ChangeNotifier`를 상속하여 UI에 상태 변경을 알립니다.
+/// 이 클래스는 다음과 같은 주요 책임들을 가집니다:
+/// - **상태 관리**: 로딩 상태, 에러 메시지, 지도 마커, 장소 목록 등 UI에 필요한 모든 상태를 관리합니다.
+/// - **비즈니스 로직**:
+///   - 사용자의 현재 위치를 가져오고 권한을 처리합니다.
+///   - 서버 API와 통신하여 주변 장소 정보나 검색 결과를 가져옵니다.
+///   - 가져온 장소 데이터를 바탕으로 지도 위에 마커를 생성하고 관리합니다.
+///   - 사용자의 상호작용(지도 이동, 마커 탭, 리스트 스크롤)에 반응하여 상태를 업데이트합니다.
+/// - **컨트롤러 관리**: `GoogleMapController`와 `ScrollController`를 관리합니다.
+library;
+
 import 'dart:async';
 import 'dart:math' show cos, sqrt, asin;
 import 'package:flutter/material.dart';
@@ -10,7 +23,7 @@ import '../../../../core/models/place_summary.dart';
 import '../../../../core/services/google_maps_service.dart';
 import 'package:location/location.dart';
 
-/// 지도 화면의 뷰모델
+/// 지도 화면의 상태와 로직을 담당하는 ViewModel.
 ///
 /// 주변 장소 데이터 조회, 지도 마커 관리, 검색 기능 등을 담당
 class MapViewModel extends ChangeNotifier {
@@ -28,6 +41,7 @@ class MapViewModel extends ChangeNotifier {
   Set<Marker> _markers = {};
   List<PlaceSummary> _places = []; // 장소 목록 단일화
   String? _selectedPlaceId;
+  String? _selectedPlaceIdBeforeChange; // 스크롤 계산을 위한 이전 선택 ID
   LatLng _currentMapCenter = const LatLng(37.4979, 127.0276); // 기본 위치 (강남역)
 
   // --- 타이머 및 컨트롤러 ---
@@ -41,6 +55,7 @@ class MapViewModel extends ChangeNotifier {
   Set<Marker> get markers => _markers;
   List<PlaceSummary> get placesToShow => _places; // 항상 _places를 사용
   String? get selectedPlaceId => _selectedPlaceId;
+  String? get selectedPlaceIdBeforeChange => _selectedPlaceIdBeforeChange;
   LatLng get currentMapCenter => _currentMapCenter;
   bool get mapControllerReady => _mapController != null;
 
@@ -50,7 +65,9 @@ class MapViewModel extends ChangeNotifier {
     _logger.i('🗺️ GoogleMapController 설정 완료');
   }
 
-  /// 생성자: 네트워크 클라이언트 초기화
+  /// `MapViewModel` 생성자.
+  ///
+  /// `ApiClient`를 초기화합니다.
   MapViewModel() {
     final googleMapsService = GoogleMapsService();
     final serverUrl = googleMapsService.getServerUrl();
@@ -68,8 +85,13 @@ class MapViewModel extends ChangeNotifier {
     super.dispose();
   }
 
-  /// 사용자의 현재 위치를 파악하고 해당 위치로 카메라를 이동시킨 후, 주변 장소를 검색한다.
-  /// 권한이 없거나 위치 서비스를 사용할 수 없는 경우 기본 위치(강남역)를 사용한다.
+  /// 앱 시작 시 사용자의 현재 위치를 가져오고 관련 데이터를 로드합니다.
+  ///
+  /// 1. 위치 서비스 활성화 여부를 확인하고, 비활성화 시 사용자에게 요청합니다.
+  /// 2. 위치 권한을 확인하고, 권한이 없는 경우 사용자에게 요청합니다.
+  /// 3. 권한이 허용되면 현재 위치를 가져와 지도를 해당 위치로 이동시킵니다.
+  /// 4. 현재 위치 기반으로 주변 장소를 검색합니다.
+  /// 5. 과정 중 실패하거나 권한이 거부되면 기본 위치(강남역)에서 검색을 수행합니다.
   Future<void> initializeAndFetchCurrentLocation() async {
     _setLoading(true);
     try {
@@ -361,6 +383,8 @@ class MapViewModel extends ChangeNotifier {
       return;
     }
 
+    // 상태 업데이트
+    _selectedPlaceIdBeforeChange = _selectedPlaceId;
     _selectedPlaceId = placeId;
     _createMarkers(); // 선택된 마커 색상 변경을 위해 마커 재생성
     // notifyListeners()는 _createMarkers()에서 이미 호출됨
@@ -375,6 +399,7 @@ class MapViewModel extends ChangeNotifier {
 
   /// 선택 해제
   void clearSelection() {
+    _selectedPlaceIdBeforeChange = _selectedPlaceId;
     _selectedPlaceId = null;
     _createMarkers();
     // notifyListeners()는 _createMarkers()에서 호출됨
