@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/models/memo.dart';
-import 'package:cherryrecorder_client/core/models/place.dart'; // 패키지 상대 경로 사용
+import '../../../../core/models/place.dart'; // 패키지 상대 경로 사용
 import 'package:google_maps_flutter/google_maps_flutter.dart'; // LatLng 타입 사용을 위해 추가
 import '../providers/place_detail_view_model.dart';
 import 'memo_add_screen.dart'; // 메모 추가 화면
 import 'package:cherryrecorder_client/core/services/google_maps_service.dart';
-import 'package:cherryrecorder_client/features/place_details/presentation/screens/memos_by_tag_screen.dart';
 import 'package:cherryrecorder_client/features/place_details/presentation/widgets/memo_card.dart'; // MemoCard 임포트
+import 'package:cherryrecorder_client/core/models/place_detail.dart';
 
 /// 장소 상세 정보를 표시하는 화면 위젯
 class PlaceDetailScreen extends StatefulWidget {
@@ -20,87 +20,46 @@ class PlaceDetailScreen extends StatefulWidget {
 }
 
 class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
-  late final Place place;
+  late final String placeId;
 
   @override
   void initState() {
     super.initState();
-    _initializePlace();
+    placeId = widget.placeData['placeId']?.toString() ??
+        widget.placeData['id']?.toString() ??
+        '';
 
-    // 위젯 빌드 후 첫 프레임이 렌더링된 다음 loadMemos 호출
+    if (placeId.isEmpty) {
+      // placeId가 없는 경우 처리 (예: 에러 표시 또는 뒤로가기)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('유효하지 않은 장소 정보입니다.')),
+          );
+          Navigator.of(context).pop();
+        }
+      });
+      return;
+    }
+
+    // 위젯 빌드 후 첫 프레임이 렌더링된 다음 데이터 로드
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Provider를 통해 ViewModel 접근 및 메모 로드
-      context.read<PlaceDetailViewModel>().loadMemos(place.id);
+      context.read<PlaceDetailViewModel>().loadData(placeId);
     });
   }
 
-  void _initializePlace() {
-    final placeData = widget.placeData;
-
-    // Map에서 LatLng 객체 생성 (안전하게)
-    final locationMap =
-        placeData['location'] is Map ? placeData['location'] as Map : {};
-    final lat = locationMap['lat'] ?? locationMap['latitude'];
-    final lng = locationMap['lng'] ?? locationMap['longitude'];
-
-    // 위도, 경도 값이 유효한지 확인
-    if (lat == null || lng == null) {
-      throw ArgumentError(
-        '장소 데이터에 유효한 위도/경도 정보가 없습니다. 받은 데이터: $placeData',
-      );
-    }
-
-    final latLng = LatLng(lat as double, lng as double);
-
-    // 사진 참조 목록 파싱 (place_summary.dart 와 place.dart 형식 모두 호환)
-    List<String> photos = [];
-    if (placeData.containsKey('photos') && placeData['photos'] is List) {
-      final photosData = placeData['photos'] as List;
-      photos = photosData
-          .map((photo) =>
-              (photo is Map<String, dynamic> && photo.containsKey('name'))
-                  ? photo['name'] as String
-                  : null)
-          .where((ref) => ref != null)
-          .cast<String>()
-          .toList();
-    }
-
-    // Place 객체 생성 (안전하게)
-    place = Place(
-      id: placeData['placeId']?.toString() ?? placeData['id']?.toString() ?? '',
-      name: placeData['name']?.toString() ?? '이름 없음',
-      address: placeData['vicinity']?.toString() ??
-          placeData['address']?.toString() ??
-          '주소 정보 없음',
-      location: latLng,
-      acceptsCreditCard: placeData['acceptsCreditCard'] as bool? ?? true,
-      photoReferences: photos,
-    );
-  }
-
-  Widget _buildSliverAppBar(BuildContext context) {
+  Widget _buildSliverAppBar(
+      BuildContext context, PlaceDetailViewModel viewModel) {
     String? imageUrl;
-    if (place.photoReferences.isNotEmpty) {
-      // 사진 참조와 API 키를 사용하여 이미지 URL 생성
-      final photoReference = place.photoReferences.first;
-      // GoogleMapsService 인스턴스를 직접 생성하여 사용
-      final apiKey = GoogleMapsService().getApiKey();
+    final placeDetail = viewModel.placeDetail;
 
-      // API 키가 있는 경우에만 URL 생성
-      if (apiKey.isNotEmpty) {
-        // photoReference가 이미 'places/...' 형식인지 확인
-        String resourceName = photoReference;
-        if (!photoReference.startsWith('places/')) {
-          // 'places/' 접두사가 없으면 추가
-          resourceName = 'places/$photoReference';
-        }
-
-        // Google Places Photo API URL 형식
-        // v1 API는 {resourceName}/media 형식을 사용
-        imageUrl =
-            'https://places.googleapis.com/v1/$resourceName/media?maxHeightPx=1000&maxWidthPx=1000&key=$apiKey';
-      }
+    if (placeDetail != null &&
+        placeDetail.photoReferences != null &&
+        placeDetail.photoReferences!.isNotEmpty) {
+      final photoReference = placeDetail.photoReferences!.first;
+      // 서버의 사진 프록시 엔드포인트를 사용
+      final serverUrl = GoogleMapsService().getServerUrl();
+      imageUrl = '$serverUrl/place/photo/$photoReference';
     }
 
     return SliverAppBar(
@@ -117,12 +76,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
             ? Image.network(
                 imageUrl,
                 fit: BoxFit.cover,
-                // 로딩 중 및 에러 발생 시 처리
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return const Center(child: CircularProgressIndicator());
                 },
                 errorBuilder: (context, error, stackTrace) {
+                  // 이미지 로드 실패 시 로그 출력 (디버그용)
+                  debugPrint('이미지 로드 실패: $imageUrl, 에러: $error');
                   return _buildDefaultImageBackground();
                 },
               )
@@ -149,41 +109,45 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Widget build(BuildContext context) {
     // ViewModel 상태 변화 감지
     final viewModel = context.watch<PlaceDetailViewModel>();
+    final placeDetail = viewModel.placeDetail;
 
     return Scaffold(
       backgroundColor: const Color(0xFFE6E6E6),
       body: CustomScrollView(
         slivers: [
-          // 상단 이미지와 앱바 (위에서 만든 함수 사용)
-          _buildSliverAppBar(context),
+          // 상단 이미지와 앱바 (ViewModel 데이터 사용)
+          _buildSliverAppBar(context, viewModel),
 
           // 장소 정보 섹션
-          SliverToBoxAdapter(
-            child: Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    place.name,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+          if (placeDetail != null)
+            SliverToBoxAdapter(
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      placeDetail.name,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    place.address,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF999999),
+                    const SizedBox(height: 8),
+                    Text(
+                      placeDetail.formattedAddress ??
+                          placeDetail.vicinity ??
+                          '주소 정보 없음',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF999999),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
 
           // 혜택 메모 헤더
           SliverToBoxAdapter(
@@ -222,7 +186,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToAddMemo(context),
+        onPressed: () {
+          if (viewModel.placeDetail != null) {
+            _navigateToAddMemo(context, viewModel.placeDetail!);
+          }
+        },
         backgroundColor: const Color(0xFFDE3B3B),
         child: const Icon(Icons.add, color: Colors.white),
       ),
@@ -251,12 +219,16 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       );
     }
 
-    if (viewModel.memos.isEmpty) {
-      return const SliverFillRemaining(
-        child: Center(
-          child: Text(
-            '저장된 메모가 없습니다.',
-            style: TextStyle(fontSize: 16, color: Colors.grey),
+    if (viewModel.memos.isEmpty && !viewModel.isLoading) {
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 40.0),
+          child: Center(
+            child: Text(
+              '아직 기록된 메모가 없습니다.\n첫 번째 혜택 메모를 추가해보세요!',
+              style: TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       );
@@ -266,12 +238,21 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       delegate: SliverChildBuilderDelegate(
         (context, index) {
           final memo = viewModel.memos[index];
-          // 새로 만든 MemoCard 위젯 사용
-          return MemoCard(
-            memo: memo,
-            onTap: () => _navigateToEditMemo(context, memo),
-            // 태그를 탭했을 때의 동작을 여기에 추가
-            onTagTap: (tag) => _showMemosWithTag(tag),
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: MemoCard(
+              memo: memo,
+              onTap: () => _navigateToAddMemo(context, viewModel.placeDetail!,
+                  existingMemo: memo),
+              onTagTap: (tag) {
+                // 태그 클릭 시 해당 태그의 메모 목록 화면으로 이동
+                Navigator.pushNamed(
+                  context,
+                  '/memos_by_tag',
+                  arguments: tag,
+                );
+              },
+            ),
           );
         },
         childCount: viewModel.memos.length,
@@ -279,54 +260,32 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     );
   }
 
-  // 메모 추가 화면으로 이동
-  void _navigateToAddMemo(BuildContext context) {
+  void _navigateToAddMemo(BuildContext context, PlaceDetail placeDetail,
+      {Memo? existingMemo}) {
+    // ViewModel의 PlaceDetail 정보를 사용하여 Place 객체 생성
+    final placeForMemo = Place(
+      id: placeDetail.placeId,
+      name: placeDetail.name,
+      address:
+          placeDetail.formattedAddress ?? placeDetail.vicinity ?? '주소 정보 없음',
+      location: placeDetail.location,
+      acceptsCreditCard: true,
+      photoReferences: placeDetail.photoReferences ?? [],
+    );
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MemoAddScreen(
-          place: place,
+        builder: (context) => MemoAddScreen(
+          place: placeForMemo,
+          memoToEdit: existingMemo,
         ),
       ),
     ).then((_) {
-      // 메모 추가 후 돌아왔을 때 목록 새로고침
-      context.read<PlaceDetailViewModel>().loadMemos(place.id);
+      // 메모 추가/수정 화면에서 돌아왔을 때 목록 새로고침
+      if (mounted) {
+        context.read<PlaceDetailViewModel>().loadMemos(placeId);
+      }
     });
-  }
-
-  // 메모 수정 화면으로 이동
-  void _navigateToEditMemo(BuildContext context, Memo memo) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MemoAddScreen(
-          place: place,
-          memoToEdit: memo,
-        ),
-      ),
-    ).then((_) {
-      // 메모 수정 후 돌아왔을 때 목록 새로고침
-      context.read<PlaceDetailViewModel>().loadMemos(place.id);
-    });
-  }
-
-  // 특정 태그를 포함하는 메모 필터링 (전역 검색)
-  void _showMemosWithTag(String tag) async {
-    final viewModel = context.read<PlaceDetailViewModel>();
-
-    // ViewModel을 통해 모든 장소에서 해당 태그를 가진 메모를 검색
-    final List<Memo> memos = await viewModel.getAllMemosWithTag(tag);
-
-    // 검색된 결과를 새 화면으로 전달
-    if (mounted) {
-      Navigator.pushNamed(
-        context,
-        '/memos_by_tag',
-        arguments: {
-          'tag': tag,
-          'memos': memos, // 'allMemos' 대신 'memos' 키 사용
-        },
-      );
-    }
   }
 }

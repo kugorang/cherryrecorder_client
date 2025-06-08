@@ -25,6 +25,7 @@ class ChatViewModel extends ChangeNotifier {
   String? _errorMessage; // 마지막 오류 메시지
   bool _isDisposed = false; // dispose 여부
   StreamSubscription? _messageSubscription; // WebSocket 메시지 구독
+  bool _isFirstJoin = true; // 첫 입장 여부
 
   // 읽기 전용 getter
   List<ChatMessage> get messages => List.unmodifiable(_messages);
@@ -32,6 +33,7 @@ class ChatViewModel extends ChangeNotifier {
   ChatConnectionStatus get connectionStatus => _connectionStatus;
   String? get errorMessage => _errorMessage;
   String? get nickname => _nickname;
+  bool get isFirstJoin => _isFirstJoin;
 
   @override
   void dispose() {
@@ -64,7 +66,7 @@ class ChatViewModel extends ChangeNotifier {
 
       _logger.i('WebSocket connected successfully');
       _setConnectionStatus(ChatConnectionStatus.connected);
-      _addSystemMessage('서버에 연결되었습니다.');
+      _addSystemMessage('채팅 서버에 연결되었습니다. 닉네임을 설정해주세요.');
 
       // 서버로부터 메시지 수신 리스너 설정
       _messageSubscription = _channel!.stream.listen(
@@ -79,7 +81,7 @@ class ChatViewModel extends ChangeNotifier {
         onDone: () {
           _logger.i('WebSocket connection closed');
           _setConnectionStatus(ChatConnectionStatus.disconnected);
-          _addSystemMessage('서버와의 연결이 끊어졌습니다.');
+          _addSystemMessage('채팅 서버와의 연결이 끊어졌습니다.');
         },
         cancelOnError: false,
       );
@@ -99,6 +101,8 @@ class ChatViewModel extends ChangeNotifier {
     _setConnectionStatus(ChatConnectionStatus.disconnected);
     _messages.clear();
     _users.clear();
+    _isFirstJoin = true; // 다음 연결 시 다시 첫 입장으로 처리
+    _nickname = null; // 닉네임도 초기화
     if (!_isDisposed) {
       notifyListeners();
     }
@@ -168,8 +172,23 @@ class ChatViewModel extends ChangeNotifier {
         final regex = RegExp(r"닉네임이 '(.+)'\(으\)로 변경되었습니다");
         final match = regex.firstMatch(message);
         if (match != null) {
+          final oldNickname = _nickname;
           _nickname = match.group(1);
           _logger.i('Nickname changed to: $_nickname');
+
+          // 첫 입장인 경우 입장 메시지 추가
+          if (_isFirstJoin && oldNickname == null) {
+            _isFirstJoin = false;
+            // 닉네임 변경 메시지 다음에 입장 메시지 추가
+            _addChatMessage(
+              ChatMessage(
+                type: 'info',
+                sender: 'System',
+                content: '$_nickname님이 입장하셨습니다.',
+                isMine: false,
+              ),
+            );
+          }
         }
       }
     }
@@ -198,7 +217,14 @@ class ChatViewModel extends ChangeNotifier {
         final senderPart = match.group(1)!;
         // "닉네임 @ 방이름" 또는 "닉네임" 형식 처리
         final parts = senderPart.split(' @ ');
-        return parts.first;
+        final sender = parts.first;
+
+        // IP:포트 형식의 닉네임인 경우 "익명" 으로 표시
+        if (RegExp(r'^\d+\.\d+\.\d+\.\d+:\d+$').hasMatch(sender)) {
+          return '익명';
+        }
+
+        return sender;
       }
     }
     return 'System';

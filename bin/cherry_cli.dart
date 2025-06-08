@@ -19,46 +19,44 @@ void main(List<String> arguments) async {
       noBoxingByDefault: true,
     ),
     output: ConsoleOutput(),
-    level: Level.verbose, // 모든 로그 레벨 표시
+    level: Level.trace, // 'verbose' 대신 'trace' 사용
   );
 
   // 명령줄 인자 파서 설정
-  final parser =
+  final parser = ArgParser()
+    ..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false)
+    ..addCommand(
+      'health',
+      ArgParser()..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false),
+    )
+    ..addCommand(
+      'nearby',
       ArgParser()
-        ..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false)
-        ..addCommand(
-          'health',
-          ArgParser()
-            ..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false),
-        )
-        ..addCommand(
-          'nearby',
-          ArgParser()
-            ..addOption('lat', help: '위도', defaultsTo: '37.5665')
-            ..addOption('lng', help: '경도', defaultsTo: '126.9780')
-            ..addOption('radius', help: '검색 반경 (미터)', defaultsTo: '1000')
-            ..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false),
-        )
-        ..addCommand(
-          'search',
-          ArgParser()
-            ..addOption('query', help: '검색어', mandatory: true)
-            ..addOption('lat', help: '위도', defaultsTo: '37.5665')
-            ..addOption('lng', help: '경도', defaultsTo: '126.9780')
-            ..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false),
-        )
-        ..addCommand(
-          'details',
-          ArgParser()
-            ..addOption('id', help: '장소 ID', mandatory: true)
-            ..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false),
-        )
-        ..addOption(
-          'server',
-          help: '서버 URL',
-          defaultsTo: 'http://localhost:8080',
-          abbr: 's',
-        );
+        ..addOption('lat', help: '위도', defaultsTo: '37.5665')
+        ..addOption('lng', help: '경도', defaultsTo: '126.9780')
+        ..addOption('radius', help: '검색 반경 (미터)', defaultsTo: '1000')
+        ..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false),
+    )
+    ..addCommand(
+      'search',
+      ArgParser()
+        ..addOption('query', help: '검색어', mandatory: true)
+        ..addOption('lat', help: '위도', defaultsTo: '37.5665')
+        ..addOption('lng', help: '경도', defaultsTo: '126.9780')
+        ..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false),
+    )
+    ..addCommand(
+      'details',
+      ArgParser()
+        ..addOption('id', help: '장소 ID', mandatory: true)
+        ..addFlag('help', abbr: 'h', help: '도움말 표시', negatable: false),
+    )
+    ..addOption(
+      'server',
+      help: '서버 URL',
+      defaultsTo: 'http://localhost:8080',
+      abbr: 's',
+    );
 
   // 사용법 출력 함수
   void printGlobalUsage() {

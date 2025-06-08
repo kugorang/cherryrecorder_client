@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:logger/logger.dart';
-import 'package:flutter/gestures.dart';
 
 import '../../../../core/models/place_summary.dart';
 import '../providers/map_view_model.dart';
 import '../widgets/place_list_card.dart';
-import 'package:location/location.dart';
 
 /// 지도 화면 (ViewModel 기반)
 class MapScreen extends StatefulWidget {
@@ -18,92 +15,22 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  final _logger = Logger();
   final _searchController = TextEditingController();
-  final Location _location = Location();
-  bool _isSheetInteracting = false;
-
-  // DraggableScrollableSheet 관련
-  final DraggableScrollableController _sheetController =
-      DraggableScrollableController();
-  double _sheetHeight = 0.2; // 현재 시트 높이 비율
-  static const double _minSheetSize = 0.1;
-  static const double _maxSheetSize = 0.5; // 최대 50%로 제한
-  static const double _initialSheetSize = 0.2;
-
-  // 스크롤 관련
-  ScrollController? _listScrollController;
-  String? _lastSelectedPlaceId;
+  final _listScrollController = ScrollController();
+  String? _lastScrolledPlaceId;
+  bool _isInitializing = true;
 
   @override
   void initState() {
     super.initState();
-
-    // 시트 크기 변화 감지
-    _sheetController.addListener(_onSheetSizeChanged);
-
-    // 초기 데이터 로드
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadInitialLocationAndFetchPlaces();
-    });
+    // 초기화는 build 메서드에서 처리
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _sheetController.removeListener(_onSheetSizeChanged);
-    _sheetController.dispose();
-    _listScrollController?.dispose();
+    _listScrollController.dispose();
     super.dispose();
-  }
-
-  // 시트 크기 변화 감지
-  void _onSheetSizeChanged() {
-    if (_sheetController.size != _sheetHeight) {
-      setState(() {
-        _sheetHeight = _sheetController.size;
-      });
-    }
-  }
-
-  /// 초기 위치 파악 후, ViewModel을 통해 주변 장소 검색 요청
-  Future<void> _loadInitialLocationAndFetchPlaces() async {
-    final mapViewModel = context.read<MapViewModel>();
-    LatLng initialLocation = mapViewModel.currentMapCenter;
-
-    try {
-      bool serviceEnabled = await _location.serviceEnabled();
-      if (!serviceEnabled) serviceEnabled = await _location.requestService();
-      if (!serviceEnabled) {
-        _logger.w('위치 서비스가 비활성화되어 있습니다. 기본 위치로 검색합니다.');
-        await mapViewModel.fetchInitialPlaces();
-        return;
-      }
-
-      PermissionStatus permissionGranted = await _location.hasPermission();
-      if (permissionGranted == PermissionStatus.denied) {
-        permissionGranted = await _location.requestPermission();
-      }
-      if (permissionGranted != PermissionStatus.granted) {
-        _logger.w('위치 권한이 거부되었습니다. 기본 위치로 검색합니다.');
-        await mapViewModel.fetchInitialPlaces();
-        return;
-      }
-
-      final locationData = await _location.getLocation();
-      if (locationData.latitude != null && locationData.longitude != null) {
-        initialLocation =
-            LatLng(locationData.latitude!, locationData.longitude!);
-        // 현재 위치로 지도 중심 이동
-        mapViewModel.onCameraIdle(initialLocation);
-      }
-    } catch (e) {
-      _logger.e('위치 로드 중 오류', error: e);
-    } finally {
-      if (mounted) {
-        await mapViewModel.fetchNearbyPlaces(initialLocation);
-      }
-    }
   }
 
   @override
@@ -111,301 +38,265 @@ class _MapScreenState extends State<MapScreen> {
     final mapViewModel = context.watch<MapViewModel>();
     final places = mapViewModel.placesToShow;
 
-    // 선택된 장소가 변경되면 시트 확장 및 스크롤
-    if (mapViewModel.selectedPlaceId != null &&
-        mapViewModel.selectedPlaceId != _lastSelectedPlaceId) {
-      _lastSelectedPlaceId = mapViewModel.selectedPlaceId;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _expandSheetAndScroll();
+    // 초기화 로직 - 최초 1회만 실행
+    if (_isInitializing && !mapViewModel.isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        setState(() {
+          _isInitializing = false;
+        });
+        // 위치 권한 요청 및 초기화
+        await mapViewModel.initializeAndFetchCurrentLocation();
       });
     }
 
-    // 화면 높이 계산
-    final screenHeight = MediaQuery.of(context).size.height;
-    final bottomPadding = screenHeight * _sheetHeight;
+    // 선택된 장소가 변경되면 목록 스크롤
+    if (mapViewModel.selectedPlaceId != null &&
+        mapViewModel.selectedPlaceId != _lastScrolledPlaceId) {
+      _lastScrolledPlaceId = mapViewModel.selectedPlaceId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final index =
+            places.indexWhere((p) => p.placeId == mapViewModel.selectedPlaceId);
+        if (index != -1 && _listScrollController.hasClients) {
+          // 아이템의 예상 높이
+          // 선택되지 않은 아이템: padding(24) + avatar(40) + gap(4) + 여백 = 약 72
+          // 선택된 아이템: 72 + gap(8) + button(40) = 약 120
+          const unselectedItemHeight = 72.0;
+          const selectedItemHeight = 120.0;
+
+          // 리스트뷰의 가시 영역 높이
+          final viewportHeight =
+              _listScrollController.position.viewportDimension;
+
+          // 선택된 아이템까지의 누적 높이 계산
+          double cumulativeHeight = 0;
+          for (int i = 0; i < index; i++) {
+            cumulativeHeight += unselectedItemHeight;
+          }
+
+          // 선택된 아이템을 뷰포트 중앙에 위치시키기
+          // 선택된 아이템의 중심 = cumulativeHeight + (selectedItemHeight / 2)
+          // 뷰포트 중심에서 아이템 중심까지의 거리를 빼면 스크롤 위치
+          final itemCenter = cumulativeHeight + (selectedItemHeight / 2);
+          final viewportCenter = viewportHeight / 2;
+          final targetOffset = itemCenter - viewportCenter;
+
+          // 최대/최소 스크롤 범위 내로 제한
+          final maxScrollExtent =
+              _listScrollController.position.maxScrollExtent;
+          final scrollToOffset = targetOffset.clamp(0.0, maxScrollExtent);
+
+          _listScrollController.animateTo(
+            scrollToOffset,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    } else if (mapViewModel.selectedPlaceId == null) {
+      // 선택이 해제되면 추적 ID도 초기화
+      _lastScrolledPlaceId = null;
+    }
 
     return Scaffold(
+      appBar: AppBar(
+        title: _buildSearchBar(mapViewModel),
+        // 다른 AppBar 속성들...
+      ),
+      // Stack을 사용하여 body 위에 로딩 인디케이터를 오버레이
       body: Stack(
         children: [
-          // Google Map
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: mapViewModel.currentMapCenter,
-              zoom: 14,
-            ),
-            onMapCreated: (controller) {
-              mapViewModel.setMapController(controller);
-            },
-            markers: mapViewModel.markers,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            scrollGesturesEnabled: !_isSheetInteracting,
-            zoomGesturesEnabled: !_isSheetInteracting,
-            rotateGesturesEnabled: !_isSheetInteracting,
-            tiltGesturesEnabled: !_isSheetInteracting,
-            zoomControlsEnabled: false,
-            onCameraIdle: () {
-              if (mapViewModel.mapControllerReady) {
-                // 지도 조작이 끝났을 때 주변 장소 검색
-                // onCameraMove에서 이미 중심 좌표를 업데이트하므로 여기서는 검색만 트리거
-              }
-            },
-            onCameraMove: (position) {
-              // 카메라 이동 시 중심 좌표 업데이트
-              mapViewModel.onCameraIdle(position.target);
-            },
-            // 하단 시트 높이에 따라 지도 패딩 동적 조절
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 70,
-              bottom: bottomPadding,
-            ),
+          Column(
+            children: [
+              // 상단: 지도 영역
+              Expanded(
+                flex: 3, // 지도가 더 많은 공간을 차지하도록 설정
+                child: _buildGoogleMap(mapViewModel),
+              ),
+              // 하단: 장소 목록 영역
+              Expanded(
+                flex: 2,
+                child: _buildPlaceList(context, mapViewModel, places),
+              ),
+            ],
           ),
-
-          // 상단 검색바
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 10,
-            left: 15,
-            right: 15,
-            child: _buildSearchBar(mapViewModel),
-          ),
-
-          // 플로팅 버튼들
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 70,
-            right: 15,
-            child: _buildFloatingButtons(),
-          ),
-
-          // 하단 시트
-          _buildBottomSheet(mapViewModel, places),
-
           // 로딩 인디케이터
           if (mapViewModel.isLoading)
             Container(
-              color: Colors.black.withAlpha(80),
-              child: const Center(child: CircularProgressIndicator()),
+              color: Colors.black.withAlpha(128), // withOpacity 대체
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+          // 초기화 중 메시지
+          if (_isInitializing)
+            Container(
+              color: Colors.white.withAlpha(240),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 24),
+                    Text(
+                      '위치 권한을 확인하고 있습니다...',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '권한을 허용하면 주변 장소를 찾아드립니다',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
             ),
         ],
       ),
     );
   }
 
-  // 하단 시트 위젯
-  Widget _buildBottomSheet(MapViewModel viewModel, List<PlaceSummary> places) {
-    return NotificationListener<DraggableScrollableNotification>(
-      onNotification: (notification) {
-        // 시트 크기 변화는 _sheetController 리스너에서 처리
-        return true;
-      },
-      child: DraggableScrollableSheet(
-        controller: _sheetController,
-        initialChildSize: _initialSheetSize,
-        minChildSize: _minSheetSize,
-        maxChildSize: _maxSheetSize,
-        snap: true,
-        snapSizes: const [0.1, 0.2, 0.5], // 스냅 포인트 설정
-        builder: (context, scrollController) {
-          _listScrollController = scrollController;
-
-          return NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification is ScrollStartNotification) {
-                setState(() => _isSheetInteracting = true);
-              } else if (notification is ScrollEndNotification) {
-                setState(() => _isSheetInteracting = false);
-              }
-              return false;
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).canvasColor,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 10,
-                  ),
-                ],
-              ),
-              child:
-                  _buildPlaceList(context, scrollController, viewModel, places),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // 시트 확장 및 스크롤
-  Future<void> _expandSheetAndScroll() async {
-    try {
-      // 시트를 40%로 확장
-      if (_sheetController.size < 0.4) {
-        await _sheetController.animateTo(
-          0.4,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-
-      // 스크롤은 _buildPlaceList에서 처리
-    } catch (e) {
-      _logger.e('시트 확장 중 오류', error: e);
-    }
-  }
-
-  // 검색바 위젯
+  /// 상단 검색 바 위젯 생성
   Widget _buildSearchBar(MapViewModel viewModel) {
-    return Material(
-      elevation: 4.0,
-      borderRadius: BorderRadius.circular(30.0),
-      child: TextField(
-        controller: _searchController,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: Colors.white,
-          prefixIcon: const Icon(Icons.search, color: Colors.grey),
-          hintText: '장소 또는 주소 검색',
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(30.0),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, color: Colors.grey),
-                  onPressed: () {
-                    _searchController.clear();
-                    viewModel.clearSelection();
-                    viewModel.fetchNearbyPlaces(viewModel.currentMapCenter);
-                    setState(() {}); // 검색창 상태 업데이트
-                  },
-                )
-              : null,
-        ),
-        onChanged: (query) {
-          setState(() {}); // 검색창 상태 업데이트 (X 버튼 표시/숨김)
-          viewModel.performSearchDebounced(query);
-        },
-        onSubmitted: (query) {
-          if (query.isNotEmpty) {
-            viewModel.searchPlaces(query, viewModel.currentMapCenter);
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _buildFloatingButtons() {
-    return Column(
-      children: [
-        _buildFloatingButton(
-          icon: Icons.my_location,
-          onPressed: _loadInitialLocationAndFetchPlaces,
-          tooltip: '현재 위치',
-        ),
-        const SizedBox(height: 10),
-        _buildFloatingButton(
-          icon: Icons.chat_bubble_outline,
-          onPressed: () => Navigator.pushNamed(context, '/chat'),
-          tooltip: '채팅',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFloatingButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-    required String tooltip,
-  }) {
-    return Material(
-      color: Colors.white,
-      elevation: 4.0,
-      shape: const CircleBorder(),
-      child: IconButton(
-        icon: Icon(icon, color: Colors.black54),
-        onPressed: onPressed,
-        tooltip: tooltip,
-      ),
-    );
-  }
-
-  Widget _buildPlaceList(
-    BuildContext context,
-    ScrollController scrollController,
-    MapViewModel viewModel,
-    List<PlaceSummary> places,
-  ) {
-    // 선택된 장소로 스크롤
-    if (viewModel.selectedPlaceId != null && _listScrollController != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final index =
-            places.indexWhere((p) => p.placeId == viewModel.selectedPlaceId);
-        if (index != -1 && _listScrollController!.hasClients) {
-          final offset = index * 85.0; // 평균 아이템 높이
-          _listScrollController!.animateTo(
-            offset.clamp(0.0, _listScrollController!.position.maxScrollExtent),
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-          );
-        }
-      });
-    }
-
-    if (places.isEmpty && !viewModel.isLoading) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Text(
-            viewModel.errorMessage ?? '주변에 장소가 없거나, 검색 결과가 없습니다.',
-            style: const TextStyle(color: Colors.grey, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        // 드래그 핸들
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12.0),
-          child: Container(
-            width: 40,
-            height: 5,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        // 장소 목록
-        Expanded(
-          child: ListView.builder(
-            controller: scrollController,
-            itemCount: places.length,
-            padding: const EdgeInsets.only(bottom: 20),
-            itemBuilder: (context, index) {
-              final place = places[index];
-              return PlaceListCard(
-                place: place,
-                isSelected: viewModel.selectedPlaceId == place.placeId,
-                onTap: () => viewModel.onPlaceSelected(place.placeId),
-                onMemoTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/place_detail',
-                    arguments: place.toJson(),
-                  );
+    return TextField(
+      controller: _searchController,
+      decoration: InputDecoration(
+        hintText: '장소 또는 주소 검색',
+        prefixIcon: const Icon(Icons.search),
+        suffixIcon: _searchController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: () {
+                  _searchController.clear();
+                  viewModel.performSearchDebounced('');
                 },
-              );
+              )
+            : null,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30.0),
+          borderSide: BorderSide.none,
+        ),
+        filled: true,
+        fillColor: Colors.grey[200],
+        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+      ),
+      onChanged: (query) {
+        setState(() {}); // suffixIcon을 다시 그리도록 상태 업데이트
+        viewModel.performSearchDebounced(query);
+      },
+    );
+  }
+
+  /// 구글맵 위젯 생성
+  Widget _buildGoogleMap(MapViewModel mapViewModel) {
+    return Stack(
+      children: [
+        GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: mapViewModel.currentMapCenter,
+            zoom: 15,
+          ),
+          onMapCreated: (controller) {
+            mapViewModel.setMapController(controller);
+          },
+          markers: mapViewModel.markers,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false, // 커스텀 버튼 사용을 위해 비활성화
+          zoomControlsEnabled: false, // 줌 컨트롤 비활성화
+          compassEnabled: true, // 나침반 활성화
+          // 지도 UI 요소들의 위치 조정을 위한 패딩 설정
+          padding: const EdgeInsets.only(
+            top: 80, // GPS 버튼 공간 확보
+            right: 80, // 우측 버튼들과 나침반 공간 확보
+            bottom: 80, // 하단 버튼 공간 확보
+            left: 80, // 왼쪽 버튼 공간 확보
+          ),
+          onCameraMove: (position) {
+            // ViewModel에 지도 중심 위치 계속 업데이트 (Debounce는 ViewModel에서 처리)
+            // mapViewModel.onCameraIdle(position.target);
+          },
+          onCameraIdle: () async {
+            // 이동이 멈추면 최종 위치로 검색
+            if (mapViewModel.mapControllerReady) {
+              final LatLng center = await (mapViewModel.mapController!
+                  .getVisibleRegion()
+                  .then((region) => LatLng(
+                        (region.northeast.latitude +
+                                region.southwest.latitude) /
+                            2,
+                        (region.northeast.longitude +
+                                region.southwest.longitude) /
+                            2,
+                      )));
+              mapViewModel.onCameraIdle(center);
+            }
+          },
+        ),
+        // GPS 버튼 (우측 상단)
+        Positioned(
+          top: 16,
+          right: 16,
+          child: FloatingActionButton(
+            mini: true,
+            heroTag: 'gps_button',
+            backgroundColor: Colors.white,
+            elevation: 4,
+            onPressed: () async {
+              // 현재 위치로 이동
+              await mapViewModel.initializeAndFetchCurrentLocation();
             },
+            child: const Icon(Icons.my_location, color: Colors.black87),
+          ),
+        ),
+        // 채팅 버튼 (좌측 하단 - 나침반과 겹치지 않음)
+        Positioned(
+          bottom: 24,
+          left: 16,
+          child: FloatingActionButton(
+            heroTag: 'chat_button',
+            backgroundColor: Theme.of(context).primaryColor,
+            elevation: 4,
+            onPressed: () {
+              // 채팅 화면으로 이동
+              Navigator.pushNamed(context, '/chat');
+            },
+            child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
           ),
         ),
       ],
+    );
+  }
+
+  /// 하단 장소 목록 리스트 위젯 생성
+  Widget _buildPlaceList(
+      BuildContext context, MapViewModel viewModel, List<PlaceSummary> places) {
+    if (viewModel.errorMessage != null && places.isEmpty) {
+      return Center(child: Text(viewModel.errorMessage!));
+    }
+
+    if (places.isEmpty) {
+      return const Center(child: Text('주변 장소를 찾을 수 없습니다.'));
+    }
+
+    return ListView.builder(
+      controller: _listScrollController, // 스크롤 컨트롤러 할당
+      itemCount: places.length,
+      itemBuilder: (context, index) {
+        final place = places[index];
+        return PlaceListCard(
+          place: place,
+          isSelected: viewModel.selectedPlaceId == place.placeId,
+          onTap: () {
+            viewModel.onPlaceSelected(place.placeId);
+          },
+          onMemoTap: () {
+            Navigator.pushNamed(
+              context,
+              '/place_detail',
+              arguments: place.toJson(),
+            );
+          },
+        );
+      },
     );
   }
 }

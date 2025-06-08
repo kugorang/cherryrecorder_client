@@ -190,17 +190,14 @@ class _CherryRecorderAppState extends State<CherryRecorderApp> {
           break;
         case '/memos_by_tag':
           // 태그별 메모 화면
-          if (settings.arguments is Map<String, dynamic>) {
-            final args = settings.arguments as Map<String, dynamic>;
-            final tag = args['tag'] as String;
-            final memos = args['memos'] as List<Memo>;
+          if (settings.arguments is String) {
+            final tag = settings.arguments as String;
             page = MemosByTagScreen(
               tag: tag,
-              memos: memos,
             );
           } else {
             _logger.e(
-              'Invalid arguments type for /memos_by_tag: Expected Map<String, dynamic>, got ${settings.arguments?.runtimeType}',
+              'Invalid arguments type for /memos_by_tag: Expected String, got ${settings.arguments?.runtimeType}',
             );
             page = Scaffold(
               appBar: AppBar(title: const Text('오류')),

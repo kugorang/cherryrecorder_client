@@ -55,7 +55,8 @@ class Place {
 
     return Place(
       id: json['id'] as String,
-      name: json['displayName']?['text'] ?? json['name'] as String,
+      name:
+          (json['displayName']?['text'] as String?) ?? (json['name'] as String),
       address: json['formattedAddress'] as String,
       location: latLng,
       acceptsCreditCard: json['acceptsCreditCard'] as bool? ?? true,
