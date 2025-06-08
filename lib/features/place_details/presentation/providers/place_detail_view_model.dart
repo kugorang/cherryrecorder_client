@@ -20,6 +20,8 @@ import 'package:cherryrecorder_client/core/models/place_detail.dart';
 import 'package:cherryrecorder_client/core/network/api_client.dart';
 import 'package:cherryrecorder_client/core/services/google_maps_service.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 /// 장소 상세 화면의 상태와 로직을 담당하는 ViewModel.
 class PlaceDetailViewModel extends ChangeNotifier {
@@ -41,6 +43,11 @@ class PlaceDetailViewModel extends ChangeNotifier {
 
   /// 작업 중 발생한 에러 메시지입니다.
   String? get error => _error;
+
+  // 캐싱 관련 상수
+  static const String _cachePrefix = 'place_detail_cache_';
+  static const String _cacheTimestampPrefix = 'place_detail_timestamp_';
+  static const Duration _cacheValidDuration = Duration(hours: 24); // 24시간 캐시 유효
 
   /// 생성자에서 `ApiClient`를 초기화합니다.
   PlaceDetailViewModel() {
@@ -80,17 +87,81 @@ class PlaceDetailViewModel extends ChangeNotifier {
     }
   }
 
+  /// 캐시에서 장소 정보를 가져옵니다.
+  Future<PlaceDetail?> _getCachedPlaceDetail(String placeId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = '$_cachePrefix$placeId';
+      final timestampKey = '$_cacheTimestampPrefix$placeId';
+
+      final cachedData = prefs.getString(cacheKey);
+      final timestamp = prefs.getInt(timestampKey);
+
+      if (cachedData != null && timestamp != null) {
+        final cacheTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+        final now = DateTime.now();
+
+        // 캐시가 유효한지 확인
+        if (now.difference(cacheTime) < _cacheValidDuration) {
+          _logger.d('캐시에서 장소 정보 로드: $placeId');
+          return PlaceDetail.fromJson(json.decode(cachedData));
+        } else {
+          _logger.d('캐시 만료됨: $placeId');
+          // 만료된 캐시 삭제
+          await prefs.remove(cacheKey);
+          await prefs.remove(timestampKey);
+        }
+      }
+    } catch (e) {
+      _logger.e('캐시 읽기 오류:', error: e);
+    }
+    return null;
+  }
+
+  /// 장소 정보를 캐시에 저장합니다.
+  Future<void> _savePlaceDetailToCache(
+      String placeId, PlaceDetail placeDetail) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = '$_cachePrefix$placeId';
+      final timestampKey = '$_cacheTimestampPrefix$placeId';
+
+      final jsonData = json.encode(placeDetail.toJson());
+      await prefs.setString(cacheKey, jsonData);
+      await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
+
+      _logger.d('장소 정보 캐시 저장: $placeId');
+    } catch (e) {
+      _logger.e('캐시 저장 오류:', error: e);
+    }
+  }
+
   /// 서버로부터 장소의 상세 정보를 비동기적으로 가져옵니다.
+  /// 먼저 캐시를 확인하고, 캐시가 없거나 만료된 경우에만 API를 호출합니다.
   /// [placeId] : 상세 정보를 조회할 장소의 고유 ID.
   Future<void> loadPlaceDetails(String placeId) async {
     try {
+      // 먼저 캐시에서 확인
+      final cachedDetail = await _getCachedPlaceDetail(placeId);
+      if (cachedDetail != null) {
+        _placeDetail = cachedDetail;
+        _logger.i('캐시에서 장소 정보 사용: $placeId');
+        return;
+      }
+
+      // 캐시가 없으면 API 호출
       final String endpoint = '${ApiConstants.placeDetailsEndpoint}/$placeId';
-      _logger.d('장소 상세 정보 요청: $endpoint');
+      _logger.d('장소 상세 정보 API 요청: $endpoint');
 
       final result = await _apiClient.get(endpoint);
       _logger.i('서버 응답 받음: ${result.toString()}');
 
       _placeDetail = PlaceDetail.fromJson(result);
+
+      // 캐시에 저장
+      if (_placeDetail != null) {
+        await _savePlaceDetailToCache(placeId, _placeDetail!);
+      }
 
       // 주소 정보 로그
       _logger.d(

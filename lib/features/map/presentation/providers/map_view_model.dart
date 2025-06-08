@@ -49,6 +49,10 @@ class MapViewModel extends ChangeNotifier {
   Timer? _mapMoveDebounce;
   final ScrollController scrollController = ScrollController();
 
+  // API 호출 제한을 위한 변수
+  LatLng? _lastApiCallCenter; // 마지막으로 API를 호출한 중심 위치
+  static const double _minDistanceForApiCall = 1.0; // 1km
+
   // --- Public Getters ---
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -60,9 +64,24 @@ class MapViewModel extends ChangeNotifier {
   bool get mapControllerReady => _mapController != null;
 
   // --- 지도 컨트롤러 설정 ---
+  bool _isFirstMapCreation = true;
+
   void setMapController(GoogleMapController controller) {
     _mapController = controller;
     _logger.i('🗺️ GoogleMapController 설정 완료');
+
+    // 처음 지도가 생성될 때 초기 위치 가져오기
+    if (_isFirstMapCreation) {
+      _isFirstMapCreation = false;
+      // 지도가 완전히 준비된 후 초기화 (충분한 시간 확보)
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        initializeAndFetchCurrentLocation();
+      });
+    } else if (_markers.isNotEmpty) {
+      // 지도가 재생성된 경우 마커를 다시 생성
+      _logger.d('지도 준비 완료, 마커 재생성');
+      _createMarkers();
+    }
   }
 
   /// `MapViewModel` 생성자.
@@ -121,6 +140,7 @@ class MapViewModel extends ChangeNotifier {
             LatLng(locationData.latitude!, locationData.longitude!);
         _logger.i('현재 위치 확인: $currentLocation');
         await centerOnLocation(currentLocation);
+        _lastApiCallCenter = currentLocation; // API 호출 기준점 설정
         await fetchNearbyPlaces(currentLocation);
       } else {
         _logger.w('현재 위치 데이터 가져오기 실패. 기본 위치로 진행.');
@@ -151,6 +171,7 @@ class MapViewModel extends ChangeNotifier {
   Future<void> fetchInitialPlaces() async {
     _logger.d(
         '📍 fetchInitialPlaces 호출됨: 중심 위치 ${_currentMapCenter.latitude}, ${_currentMapCenter.longitude}');
+    _lastApiCallCenter = _currentMapCenter; // API 호출 기준점 설정
     await fetchNearbyPlaces(_currentMapCenter);
   }
 
@@ -159,8 +180,23 @@ class MapViewModel extends ChangeNotifier {
     _currentMapCenter = center;
     _mapMoveDebounce?.cancel();
     _mapMoveDebounce = Timer(const Duration(milliseconds: 800), () {
-      _logger.i('🗺️ 지도 이동 멈춤. 중심: $center. 주변 장소 다시 검색.');
-      fetchNearbyPlaces(center);
+      // 처음 호출이거나 최소 거리 이상 이동했을 때만 API 호출
+      if (_lastApiCallCenter == null) {
+        _logger.i('🗺️ 첫 API 호출. 중심: $center');
+        _lastApiCallCenter = center;
+        fetchNearbyPlaces(center);
+      } else {
+        final distance = _calculateDistance(_lastApiCallCenter!, center);
+        if (distance >= _minDistanceForApiCall) {
+          _logger.i(
+              '🗺️ ${distance.toStringAsFixed(2)}km 이동. 주변 장소 다시 검색. 중심: $center');
+          _lastApiCallCenter = center;
+          fetchNearbyPlaces(center);
+        } else {
+          _logger.d(
+              '🗺️ ${distance.toStringAsFixed(2)}km 이동. 최소 거리(${_minDistanceForApiCall}km) 미달로 API 호출 생략');
+        }
+      }
     });
   }
 
@@ -268,6 +304,8 @@ class MapViewModel extends ChangeNotifier {
           final firstPlace = _places.first;
           await centerOnLocation(firstPlace.location);
           onPlaceSelected(firstPlace.placeId, moveCamera: false);
+          // 검색 후 새로운 위치로 이동했으므로 API 호출 기준점 업데이트
+          _lastApiCallCenter = firstPlace.location;
         }
 
         _createMarkers();
@@ -354,9 +392,41 @@ class MapViewModel extends ChangeNotifier {
     _logger.d('🎯 마커 생성 완료. 총 ${_markers.length}개');
 
     // 선택된 마커의 InfoWindow 표시
-    if (_selectedPlaceId != null && _mapController != null) {
-      _mapController!.showMarkerInfoWindow(MarkerId(_selectedPlaceId!));
-      _logger.d('선택된 마커의 InfoWindow 표시: $_selectedPlaceId');
+    if (_selectedPlaceId != null &&
+        _selectedPlaceId!.isNotEmpty &&
+        _mapController != null) {
+      // 디버깅용 로그 추가
+      _logger.d('InfoWindow 표시 시도 - selectedPlaceId: "$_selectedPlaceId"');
+      _logger
+          .d('현재 마커 ID 목록: ${_markers.map((m) => m.markerId.value).toList()}');
+
+      // 선택된 placeId가 현재 places 목록에 실제로 존재하는지 확인
+      final selectedPlaceExists =
+          _places.any((place) => place.placeId == _selectedPlaceId);
+
+      // 마커가 실제로 생성되었는지 확인
+      final markerExists =
+          _markers.any((marker) => marker.markerId.value == _selectedPlaceId);
+
+      if (selectedPlaceExists && markerExists) {
+        // 마커가 지도에 렌더링될 시간을 주기 위해 충분한 지연 추가
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (_mapController != null && _selectedPlaceId != null) {
+            try {
+              _mapController!.showMarkerInfoWindow(MarkerId(_selectedPlaceId!));
+              _logger.d('✅ InfoWindow 표시 성공: $_selectedPlaceId');
+            } catch (e) {
+              _logger.e('❌ InfoWindow 표시 중 오류 발생', error: e);
+              // 오류는 로그만 남기고 선택은 유지 (타이밍 이슈일 수 있음)
+            }
+          }
+        });
+      } else {
+        _logger.w('선택된 장소가 목록에 없거나 마커가 생성되지 않음');
+        _logger.w('장소 존재: $selectedPlaceExists, 마커 존재: $markerExists');
+        // 존재하지 않는 선택 초기화
+        _selectedPlaceId = null;
+      }
     }
 
     // 마커가 업데이트되었으므로 UI 갱신

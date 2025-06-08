@@ -65,19 +65,22 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
         mapsApiKey: _webMapsApiKey, // 초기에는 비어있음
       );
     } else {
+      // 모바일 구현체를 위한 이미 완료된 Completer 생성
+      final envCompleter = Completer<void>();
+      envCompleter.complete(); // 즉시 완료 처리
+
       _platformImpl = getMobileImplementation(
         logger: _logger,
         webMapsLoadedCompleter: _webMapsLoadedCompleter,
-        envLoadCompleter:
-            Completer<void>(), // Mobile 구현체는 더 이상 envLoadCompleter를 사용하지 않음
+        envLoadCompleter: envCompleter,
       );
     }
   }
 
   @override
   Future<void> initialize({
-    String? webApiBaseUrl, // 더 이상 사용되지 않음
-    String? androidApiBaseUrl, // 더 이상 사용되지 않음
+    String? webApiBaseUrl, // deprecated - API_BASE_URL 환경변수 사용
+    String? androidApiBaseUrl, // deprecated - API_BASE_URL 환경변수 사용
     String? webMapsApiKey,
   }) async {
     if (_isInitialized) {
@@ -86,13 +89,12 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
     }
 
     try {
+      // API URL 로그 출력
+      _logger.i('API URL: $_serverBaseUrl (플랫폼: ${kIsWeb ? "웹" : "모바일"})');
+
       // 웹 API 키가 주입된 경우, 내부 변수에 저장합니다.
       if (webMapsApiKey != null) {
         _webMapsApiKey = webMapsApiKey;
-        // 웹 구현체에 API 키를 다시 전달해야 할 경우 아래 로직 사용
-        // if (kIsWeb) {
-        //   (_platformImpl as GoogleMapsServiceWeb).setApiKey(webMapsApiKey);
-        // }
       }
 
       _logger

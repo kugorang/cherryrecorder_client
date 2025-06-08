@@ -7,16 +7,17 @@
         </trust-anchors>
     </base-config>
 
+    <!-- 로컬 개발 서버(HTTP)에 대한 예외 허용 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain> <!-- Android 에뮬레이터용 localhost -->
+    </domain-config>
+
     <!-- 디버그 빌드 전용 재정의 규칙 -->
     <!-- 이 설정은 debuggable="true"로 빌드될 때만 적용됩니다. -->
     <debug-overrides>
         <trust-anchors>
             <certificates src="user" />
         </trust-anchors>
-        <!-- 로컬 개발 서버에 대한 예외 -->
-        <domain-config cleartextTrafficPermitted="true">
-            <domain includeSubdomains="true">localhost</domain>
-            <domain includeSubdomains="true">10.0.2.2</domain> <!-- Android 에뮬레이터용 localhost -->
-        </domain-config>
     </debug-overrides>
 </network-security-config> 

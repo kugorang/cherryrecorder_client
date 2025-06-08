@@ -13,6 +13,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -66,7 +67,7 @@ class _MapScreenState extends State<MapScreen> {
         setState(() {
           _isInitializing = false;
         });
-        mapViewModel.initializeAndFetchCurrentLocation();
+        // 초기화는 이제 지도 컨트롤러가 설정될 때 자동으로 실행됨
       }
 
       // ViewModel에서 선택된 장소가 변경되었을 때, 해당 장소가 보이도록 리스트를 스크롤합니다.
@@ -111,7 +112,7 @@ class _MapScreenState extends State<MapScreen> {
                     const CircularProgressIndicator(),
                     const SizedBox(height: 24),
                     Text(
-                      '위치 권한을 확인하고 있습니다...',
+                      '지도를 준비하고 있습니다...',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ],
@@ -169,14 +170,15 @@ class _MapScreenState extends State<MapScreen> {
           markers: mapViewModel.markers,
           myLocationEnabled: true,
           myLocationButtonEnabled: false, // 커스텀 버튼을 사용하므로 비활성화
-          zoomControlsEnabled: false,
+          zoomControlsEnabled: false, // 웹과 모바일 모두 기본 줌 컨트롤 비활성화
           compassEnabled: true, // 나침반 활성화
           // 지도 UI 요소들의 위치 조정을 위한 패딩 설정
-          padding: const EdgeInsets.only(
-            top: 80, // GPS 버튼 공간 확보
-            right: 80, // 우측 버튼들과 나침반 공간 확보
-            bottom: 80, // 하단 버튼 공간 확보
-            left: 80, // 왼쪽 버튼 공간 확보
+          // 모바일: 줌 버튼이 채팅 버튼(bottom: 24 + 56)와 GPS 버튼(top: 16 + 40) 사이에 위치
+          padding: EdgeInsets.only(
+            top: kIsWeb ? 80 : 70, // GPS 버튼 아래 공간 확보
+            right: 16, // 웹에서도 커스텀 컨트롤이 없으므로 모바일과 동일하게 조정
+            bottom: kIsWeb ? 80 : 90, // 채팅 버튼 위 공간 확보 (24 + 56 + 10)
+            left: 80, // 왼쪽 공간
           ),
           onCameraMove: (position) {
             // ViewModel에 지도 중심 위치 계속 업데이트 (Debounce는 ViewModel에서 처리)
@@ -266,9 +268,10 @@ class _MapScreenState extends State<MapScreen> {
 
     if (index != -1 && _listScrollController.hasClients) {
       // 선택된 아이템의 크기와 위치를 고려하여 스크롤할 offset을 계산합니다.
-      // 아이템이 리스트 뷰의 중앙에 오도록 계산합니다.
-      const unselectedItemHeight = 72.0;
-      const selectedItemHeight = 120.0;
+      // 아이템이 뷰포트 하단에서 1/3 높이 위치에 오도록 계산합니다.
+      // 실제 측정된 높이 값 사용 (padding, 텍스트, 버튼 포함)
+      const unselectedItemHeight = 80.0; // padding 24 + content ~56
+      const selectedItemHeight = 136.0; // unselected + 메모 버튼 영역
       final viewportHeight = _listScrollController.position.viewportDimension;
 
       double cumulativeHeight = 0;
@@ -279,9 +282,14 @@ class _MapScreenState extends State<MapScreen> {
                 : unselectedItemHeight);
       }
 
-      final targetOffset =
-          cumulativeHeight + (selectedItemHeight / 2) - (viewportHeight / 2);
+      // 선택된 아이템이 뷰포트 하단에서 1/4 높이 위치에 오도록 계산
+      // targetPosition = 하단에서 1/4 지점 = viewportHeight * (3/4)
+      final targetPositionInViewport = viewportHeight * (3.0 / 4.0);
 
+      // 선택된 아이템의 상단이 targetPosition에 오도록 offset 계산
+      final targetOffset = cumulativeHeight - targetPositionInViewport;
+
+      // 스크롤 애니메이션 실행
       _listScrollController.animateTo(
         targetOffset.clamp(0.0, _listScrollController.position.maxScrollExtent),
         duration: const Duration(milliseconds: 400),

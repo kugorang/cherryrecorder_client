@@ -97,4 +97,22 @@ class PlaceDetail {
       website: data['website'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'place_id': placeId,
+      'name': name,
+      'formatted_address': formattedAddress,
+      'formatted_phone_number': formattedPhoneNumber,
+      'location': {
+        'lat': location.latitude,
+        'lng': location.longitude,
+      },
+      'photos':
+          photoReferences?.map((ref) => {'photo_reference': ref}).toList(),
+      'rating': rating,
+      'vicinity': vicinity,
+      'website': website,
+    };
+  }
 }
