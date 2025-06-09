@@ -61,16 +61,8 @@ Future<void> main() async {
   }
 
   // --- 환경 변수 로드 ---
-  // --dart-define을 통해 주입된 API URL 및 키 값을 로드합니다.
-  // 플랫폼(웹/안드로이드)에 따라 다른 기본 URL을 사용합니다.
-  const webApiBaseUrl = String.fromEnvironment(
-    'WEB_API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
-  );
-  const androidApiBaseUrl = String.fromEnvironment(
-    'ANDROID_API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8080',
-  );
+  // --dart-define을 통해 주입된 API 키 값을 로드합니다.
+  // API URL은 이제 GoogleMapsService 내부에서 API_BASE_URL 환경 변수를 직접 읽습니다.
   const webMapsApiKey = String.fromEnvironment('WEB_MAPS_API_KEY');
 
   try {
@@ -82,15 +74,10 @@ Future<void> main() async {
     // Google Maps 관련 API 통신을 담당하는 GoogleMapsService를 초기화합니다.
     final mapsService = GoogleMapsService();
     await mapsService.initialize(
-      webApiBaseUrl: webApiBaseUrl,
-      androidApiBaseUrl: androidApiBaseUrl,
       webMapsApiKey: webMapsApiKey,
     );
     logger.i('$environment 환경에서 앱 실행 중');
-    logger.i('API Base URL (Web): ${mapsService.getServerUrl(isWeb: true)}');
-    logger.i(
-      'API Base URL (Android): ${mapsService.getServerUrl(isWeb: false)}',
-    );
+    logger.i('API Base URL: ${mapsService.getServerUrl()}');
 
     // --- 앱 실행 ---
     // MultiProvider를 사용하여 앱 전역에서 상태를 관리할 ViewModel들을 제공합니다.

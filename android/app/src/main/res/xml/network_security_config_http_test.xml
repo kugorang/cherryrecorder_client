@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+    경고: 이 설정은 테스트 목적으로만 사용하세요!
+    프로덕션에서는 절대 사용하지 마세요!
+    민감한 데이터(위치, 채팅)가 평문으로 전송됩니다!
+-->
+<network-security-config>
+    <!-- 특정 도메인에 대해서만 HTTP 허용 (최소한의 보안) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">cherryrecorder.kugora.ng</domain>
+        <!-- 개발 환경 -->
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+    
+    <!-- 나머지는 HTTPS만 허용 -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config> 

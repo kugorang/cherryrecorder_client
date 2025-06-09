@@ -220,14 +220,32 @@ class MapViewModel extends ChangeNotifier {
 
     try {
       _logger.i('🔍 주변 장소 요청 시작: ${center.latitude}, ${center.longitude}');
-      final response = await _apiClient.post(
-        ApiConstants.nearbySearchEndpoint,
-        body: {
-          'latitude': center.latitude,
-          'longitude': center.longitude,
-          'radius': 1500.0, // 1.5km 반경
-        },
-      ).timeout(const Duration(seconds: 15));
+
+      // 재시도 로직 추가
+      int retryCount = 0;
+      late Map<String, dynamic> response;
+
+      while (retryCount < 3) {
+        try {
+          response = await _apiClient.post(
+            ApiConstants.nearbySearchEndpoint,
+            body: {
+              'latitude': center.latitude,
+              'longitude': center.longitude,
+              'radius': 1000.0, // 1.5km → 1km로 감소하여 응답 속도 개선
+            },
+          ).timeout(const Duration(seconds: 30)); // 타임아웃 15초 → 30초로 증가
+          break; // 성공하면 루프 탈출
+        } catch (e) {
+          if (e is TimeoutException && retryCount < 2) {
+            retryCount++;
+            _logger.w('⏰ 타임아웃 발생, 재시도 ${retryCount}/3');
+            await Future.delayed(const Duration(seconds: 2)); // 2초 대기 후 재시도
+            continue;
+          }
+          rethrow; // 마지막 시도 실패 시 예외 전파
+        }
+      }
 
       if (response.containsKey('places') && response['places'] is List) {
         final List placesData = response['places'];
@@ -253,7 +271,9 @@ class MapViewModel extends ChangeNotifier {
     } catch (e) {
       _logger.e('❌ 주변 장소 로드 오류: $e');
       _places = [];
-      _errorMessage = e is TimeoutException ? '서버 응답 시간 초과' : '서버 연결 오류 발생';
+      _errorMessage = e is TimeoutException
+          ? '서버 응답 시간 초과. 잠시 후 다시 시도해주세요.'
+          : '서버 연결 오류 발생';
       _createMarkers();
     } finally {
       _setLoading(false);
@@ -283,15 +303,33 @@ class MapViewModel extends ChangeNotifier {
     try {
       _logger.i(
           '🔍 장소 검색 요청 시작: "$query" at ${center.latitude}, ${center.longitude}');
-      final response = await _apiClient.post(
-        ApiConstants.textSearchEndpoint,
-        body: {
-          'query': query,
-          'latitude': center.latitude,
-          'longitude': center.longitude,
-          'radius': 5000.0,
-        },
-      ).timeout(const Duration(seconds: 15));
+
+      // 재시도 로직 추가
+      int retryCount = 0;
+      late Map<String, dynamic> response;
+
+      while (retryCount < 3) {
+        try {
+          response = await _apiClient.post(
+            ApiConstants.textSearchEndpoint,
+            body: {
+              'query': query,
+              'latitude': center.latitude,
+              'longitude': center.longitude,
+              'radius': 5000.0,
+            },
+          ).timeout(const Duration(seconds: 30)); // 타임아웃 15초 → 30초로 증가
+          break; // 성공하면 루프 탈출
+        } catch (e) {
+          if (e is TimeoutException && retryCount < 2) {
+            retryCount++;
+            _logger.w('⏰ 타임아웃 발생, 재시도 ${retryCount}/3');
+            await Future.delayed(const Duration(seconds: 2)); // 2초 대기 후 재시도
+            continue;
+          }
+          rethrow; // 마지막 시도 실패 시 예외 전파
+        }
+      }
 
       if (response.containsKey('places') && response['places'] is List) {
         final List placesData = response['places'];
@@ -318,7 +356,8 @@ class MapViewModel extends ChangeNotifier {
     } catch (e) {
       _logger.e('❌ 장소 검색 오류: $e');
       _places = [];
-      _errorMessage = e is TimeoutException ? '서버 응답 시간 초과' : '검색 중 오류 발생';
+      _errorMessage =
+          e is TimeoutException ? '서버 응답 시간 초과. 잠시 후 다시 시도해주세요.' : '검색 중 오류 발생';
       _createMarkers();
     } finally {
       _setLoading(false);

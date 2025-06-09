@@ -97,10 +97,7 @@ class _MapScreenState extends State<MapScreen> {
           ),
           // 로딩 오버레이: ViewModel의 isLoading 상태에 따라 표시됩니다.
           if (mapViewModel.isLoading && !_isInitializing)
-            Container(
-              color: Colors.black.withOpacity(0.3),
-              child: const Center(child: CircularProgressIndicator()),
-            ),
+            _buildLoadingOverlay(mapViewModel),
           // 초기화 로딩 오버레이: 권한 요청 등 초기 작업 중에 표시됩니다.
           if (_isInitializing)
             Container(
@@ -298,5 +295,41 @@ class _MapScreenState extends State<MapScreen> {
     } else if (selectedId == null) {
       _lastScrolledPlaceId = null;
     }
+  }
+
+  /// 로딩 오버레이 위젯
+  Widget _buildLoadingOverlay(MapViewModel viewModel) {
+    if (!viewModel.isLoading) return const SizedBox.shrink();
+
+    return Container(
+      color: Colors.black.withOpacity(0.3),
+      child: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+            SizedBox(height: 16),
+            Text(
+              '주변 장소를 검색하고 있습니다...',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '네트워크 상태에 따라 시간이 걸릴 수 있습니다',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
