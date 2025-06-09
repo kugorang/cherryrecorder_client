@@ -52,6 +52,8 @@ class MapViewModel extends ChangeNotifier {
   // API 호출 제한을 위한 변수
   LatLng? _lastApiCallCenter; // 마지막으로 API를 호출한 중심 위치
   static const double _minDistanceForApiCall = 1.0; // 1km
+  bool _autoRefreshEnabled = false; // 자동 갱신 비활성화
+  static const int _maxPlacesToShow = 5; // 표시할 최대 장소 개수
 
   // --- Public Getters ---
   bool get isLoading => _isLoading;
@@ -62,6 +64,7 @@ class MapViewModel extends ChangeNotifier {
   String? get selectedPlaceIdBeforeChange => _selectedPlaceIdBeforeChange;
   LatLng get currentMapCenter => _currentMapCenter;
   bool get mapControllerReady => _mapController != null;
+  bool get autoRefreshEnabled => _autoRefreshEnabled;
 
   // --- 지도 컨트롤러 설정 ---
   bool _isFirstMapCreation = true;
@@ -178,6 +181,13 @@ class MapViewModel extends ChangeNotifier {
   /// 지도 이동이 멈추면 호출되는 디바운스 함수
   void onCameraIdle(LatLng center) {
     _currentMapCenter = center;
+
+    // 자동 갱신이 비활성화되어 있으면 API 호출하지 않음
+    if (!_autoRefreshEnabled) {
+      _logger.d('🗺️ 자동 갱신 비활성화됨. 지도 이동에 따른 API 호출 생략');
+      return;
+    }
+
     _mapMoveDebounce?.cancel();
     _mapMoveDebounce = Timer(const Duration(milliseconds: 800), () {
       // 처음 호출이거나 최소 거리 이상 이동했을 때만 API 호출
@@ -232,7 +242,7 @@ class MapViewModel extends ChangeNotifier {
             body: {
               'latitude': center.latitude,
               'longitude': center.longitude,
-              'radius': 1000.0, // 1.5km → 1km로 감소하여 응답 속도 개선
+              'radius': 500.0, // 1km → 500m로 더 감소하여 서버 부하 경감
             },
           ).timeout(const Duration(seconds: 30)); // 타임아웃 15초 → 30초로 증가
           break; // 성공하면 루프 탈출
@@ -257,6 +267,12 @@ class MapViewModel extends ChangeNotifier {
         } else {
           _places =
               placesData.map((data) => PlaceSummary.fromJson(data)).toList();
+
+          // 장소를 5개로 제한
+          if (_places.length > _maxPlacesToShow) {
+            _logger.i('📍 장소 ${_places.length}개 중 ${_maxPlacesToShow}개만 표시');
+            _places = _places.take(_maxPlacesToShow).toList();
+          }
 
           // 가장 가까운 장소 찾아 자동 선택
           _findAndSelectNearestPlace(center);
@@ -336,6 +352,12 @@ class MapViewModel extends ChangeNotifier {
         _logger.i('📍 검색된 장소 데이터 ${placesData.length}개 발견');
         _places =
             placesData.map((data) => PlaceSummary.fromJson(data)).toList();
+
+        // 검색 결과도 5개로 제한
+        if (_places.length > _maxPlacesToShow) {
+          _logger.i('📍 검색 결과 ${_places.length}개 중 ${_maxPlacesToShow}개만 표시');
+          _places = _places.take(_maxPlacesToShow).toList();
+        }
 
         if (_places.isNotEmpty) {
           // 검색 결과의 첫 번째 장소로 지도 이동 및 선택
@@ -512,5 +534,11 @@ class MapViewModel extends ChangeNotifier {
     _selectedPlaceId = null;
     _createMarkers();
     // notifyListeners()는 _createMarkers()에서 호출됨
+  }
+
+  /// 수동 새로고침
+  Future<void> refreshNearbyPlaces() async {
+    _lastApiCallCenter = _currentMapCenter;
+    await fetchNearbyPlaces(_currentMapCenter);
   }
 }

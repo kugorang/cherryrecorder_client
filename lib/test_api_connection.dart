@@ -88,7 +88,7 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
       final testData = {
         'latitude': 37.5665,
         'longitude': 126.9780,
-        'radius': 1000.0,
+        'radius': 500.0, // 반경을 1km에서 500m로 축소
         'type': 'restaurant', // 음식점 검색
       };
 
@@ -414,10 +414,9 @@ class _ApiConnectionTestState extends State<ApiConnectionTest> {
                   border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child:
-                    _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : SingleChildScrollView(child: Text(_resultText)),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : SingleChildScrollView(child: Text(_resultText)),
               ),
             ),
           ],

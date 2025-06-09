@@ -206,6 +206,31 @@ class _MapScreenState extends State<MapScreen> {
             child: const Icon(Icons.my_location),
           ),
         ),
+        // 새로고침 버튼 추가
+        Positioned(
+          bottom: 24,
+          right: 16,
+          child: FloatingActionButton(
+            mini: true,
+            heroTag: 'refresh_button',
+            onPressed: mapViewModel.isLoading
+                ? null
+                : () async {
+                    await mapViewModel.refreshNearbyPlaces();
+                  },
+            backgroundColor: mapViewModel.isLoading ? Colors.grey : null,
+            child: mapViewModel.isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.refresh),
+          ),
+        ),
         // 채팅 화면으로 이동하는 커스텀 버튼
         Positioned(
           bottom: 24,
