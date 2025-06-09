@@ -61,16 +61,17 @@ class ChatViewModel extends ChangeNotifier {
       _logger.i('WebSocket URL: $wsUrl');
       _logger.i('Protocol: $protocol, Host: $host, Port: $port');
 
-      // WebSocket 연결 시 헤더 추가
-      final headers = {
-        'User-Agent': 'Flutter Android App',
-        'Origin': 'https://cherryrecorder.kugora.ng',
-      };
-
-      _channel = WebSocketChannel.connect(
-        wsUrl,
-        protocols: ['chat'], // 서브프로토콜 명시
-      );
+      // 로컬 서버 테스트 시에는 서브프로토콜 없이 연결
+      if (host == 'localhost' || host == '127.0.0.1' || host == '10.0.2.2') {
+        _logger.i('Connecting to local server without subprotocol');
+        _channel = WebSocketChannel.connect(wsUrl);
+      } else {
+        _logger.i('Connecting to production server with "chat" subprotocol');
+        _channel = WebSocketChannel.connect(
+          wsUrl,
+          protocols: ['chat'], // 프로덕션 서버용 서브프로토콜
+        );
+      }
 
       _logger.i('WebSocket connecting to $wsUrl');
 

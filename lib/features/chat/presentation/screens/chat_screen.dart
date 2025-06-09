@@ -33,6 +33,11 @@ class _ChatScreenState extends State<ChatScreen> {
     defaultValue: '',
   );
 
+  static const int _chatServerPortFromEnv = int.fromEnvironment(
+    'CHAT_SERVER_PORT',
+    defaultValue: 0,
+  );
+
   static const bool _useSecureWebSocket = bool.fromEnvironment(
     'USE_WSS',
     defaultValue: false,
@@ -67,8 +72,10 @@ class _ChatScreenState extends State<ChatScreen> {
         // 포트 번호가 있으면 파싱해서 사용
         _chatServerPort = int.tryParse(parts[1]) ?? _defaultChatServerPort;
       } else {
-        // 포트 번호가 없으면 기본 포트 사용
-        _chatServerPort = _defaultChatServerPort;
+        // 포트 번호가 없으면 환경 변수에서 전달된 포트 또는 기본 포트 사용
+        _chatServerPort = _chatServerPortFromEnv != 0
+            ? _chatServerPortFromEnv
+            : _defaultChatServerPort;
       }
     } else {
       // 환경 변수가 없을 때 플랫폼별 기본값 설정
@@ -81,7 +88,9 @@ class _ChatScreenState extends State<ChatScreen> {
           _chatServerIp = 'localhost';
         }
       }
-      _chatServerPort = _defaultChatServerPort;
+      _chatServerPort = _chatServerPortFromEnv != 0
+          ? _chatServerPortFromEnv
+          : _defaultChatServerPort;
     }
 
     _logger.i(
