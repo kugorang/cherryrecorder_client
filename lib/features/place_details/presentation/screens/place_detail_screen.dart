@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/models/memo.dart';
 import '../../../../core/models/place.dart'; // 패키지 상대 경로 사용
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // LatLng 타입 사용을 위해 추가
+// LatLng 타입 사용을 위해 추가
 import '../providers/place_detail_view_model.dart';
 import 'memo_add_screen.dart'; // 메모 추가 화면
 import 'package:cherryrecorder_client/core/services/google_maps_service.dart';

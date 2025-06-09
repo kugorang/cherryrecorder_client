@@ -13,7 +13,7 @@ import 'features/place_details/presentation/screens/memos_by_tag_screen.dart'; /
 import 'features/chat/presentation/screens/chat_screen.dart'; // 채팅 스크린 임포트 추가
 import 'package:logger/logger.dart';
 import 'core/services/storage_service.dart'; // 스토리지 서비스 추가
-import 'core/models/memo.dart'; // Memo 모델 임포트 추가
+// Memo 모델 임포트 추가
 
 /// `CherryRecorderApp`은 애플리케이션의 최상위 상태 관리 위젯입니다.
 ///

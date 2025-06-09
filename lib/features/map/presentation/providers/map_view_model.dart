@@ -52,7 +52,7 @@ class MapViewModel extends ChangeNotifier {
   // API 호출 제한을 위한 변수
   LatLng? _lastApiCallCenter; // 마지막으로 API를 호출한 중심 위치
   static const double _minDistanceForApiCall = 1.0; // 1km
-  bool _autoRefreshEnabled = false; // 자동 갱신 비활성화
+  final bool _autoRefreshEnabled = false; // 자동 갱신 비활성화
   static const int _maxPlacesToShow = 5; // 표시할 최대 장소 개수
 
   // --- Public Getters ---
@@ -249,7 +249,7 @@ class MapViewModel extends ChangeNotifier {
         } catch (e) {
           if (e is TimeoutException && retryCount < 2) {
             retryCount++;
-            _logger.w('⏰ 타임아웃 발생, 재시도 ${retryCount}/3');
+            _logger.w('⏰ 타임아웃 발생, 재시도 $retryCount/3');
             await Future.delayed(const Duration(seconds: 2)); // 2초 대기 후 재시도
             continue;
           }
@@ -270,7 +270,7 @@ class MapViewModel extends ChangeNotifier {
 
           // 장소를 5개로 제한
           if (_places.length > _maxPlacesToShow) {
-            _logger.i('📍 장소 ${_places.length}개 중 ${_maxPlacesToShow}개만 표시');
+            _logger.i('📍 장소 ${_places.length}개 중 $_maxPlacesToShow개만 표시');
             _places = _places.take(_maxPlacesToShow).toList();
           }
 
@@ -339,7 +339,7 @@ class MapViewModel extends ChangeNotifier {
         } catch (e) {
           if (e is TimeoutException && retryCount < 2) {
             retryCount++;
-            _logger.w('⏰ 타임아웃 발생, 재시도 ${retryCount}/3');
+            _logger.w('⏰ 타임아웃 발생, 재시도 $retryCount/3');
             await Future.delayed(const Duration(seconds: 2)); // 2초 대기 후 재시도
             continue;
           }
@@ -355,7 +355,7 @@ class MapViewModel extends ChangeNotifier {
 
         // 검색 결과도 5개로 제한
         if (_places.length > _maxPlacesToShow) {
-          _logger.i('📍 검색 결과 ${_places.length}개 중 ${_maxPlacesToShow}개만 표시');
+          _logger.i('📍 검색 결과 ${_places.length}개 중 $_maxPlacesToShow개만 표시');
           _places = _places.take(_maxPlacesToShow).toList();
         }
 
