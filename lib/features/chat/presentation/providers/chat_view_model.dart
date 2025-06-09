@@ -57,12 +57,30 @@ class ChatViewModel extends ChangeNotifier {
       // WebSocket 연결 (WS 또는 WSS)
       final protocol = useSecure ? 'wss' : 'ws';
       final wsUrl = Uri.parse('$protocol://$host:$port');
-      _channel = WebSocketChannel.connect(wsUrl);
+
+      _logger.i('WebSocket URL: $wsUrl');
+      _logger.i('Protocol: $protocol, Host: $host, Port: $port');
+
+      // WebSocket 연결 시 헤더 추가
+      final headers = {
+        'User-Agent': 'Flutter Android App',
+        'Origin': 'https://cherryrecorder.kugora.ng',
+      };
+
+      _channel = WebSocketChannel.connect(
+        wsUrl,
+        protocols: ['chat'], // 서브프로토콜 명시
+      );
 
       _logger.i('WebSocket connecting to $wsUrl');
 
       // 연결 완료를 기다림
-      await _channel!.ready;
+      await _channel!.ready.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('WebSocket 연결 시간 초과');
+        },
+      );
 
       _logger.i('WebSocket connected successfully');
       _setConnectionStatus(ChatConnectionStatus.connected);

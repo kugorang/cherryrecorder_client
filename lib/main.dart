@@ -9,6 +9,7 @@
 /// 6. 앱 초기화 과정에서 발생하는 모든 예외를 처리하고, 오류 발생 시 간단한 오류 화면을 표시합니다.
 library;
 
+import 'dart:io' show HttpOverrides;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +20,7 @@ import 'app.dart';
 import 'package:logger/logger.dart';
 import 'core/services/google_maps_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'core/utils/http_override.dart';
 
 /// 앱 전역에서 사용될 로거 인스턴스입니다.
 final logger = Logger();
@@ -39,6 +41,13 @@ const String environment = String.fromEnvironment(
 Future<void> main() async {
   // Flutter 엔진과 위젯 바인딩을 초기화합니다. runApp 전에 반드시 호출되어야 합니다.
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 개발/디버그 목적으로 SSL 인증서 검증 우회 (웹이 아닌 경우만)
+  // ⚠️ 주의: 이는 임시 해결책입니다. 프로덕션에서는 적절한 인증서를 사용해야 합니다.
+  if (!kIsWeb) {
+    HttpOverrides.global = MyHttpOverrides();
+    logger.w('⚠️ SSL 인증서 검증이 우회되었습니다. 이는 테스트 목적으로만 사용해야 합니다.');
+  }
 
   // --- 패키지 정보 확인 ---
   // 앱의 패키지 이름, 버전 등 메타데이터를 확인하여 현재 빌드 Flavor(dev/prod)를 감지합니다.
