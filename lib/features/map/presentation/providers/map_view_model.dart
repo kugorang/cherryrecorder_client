@@ -240,9 +240,9 @@ class MapViewModel extends ChangeNotifier {
           response = await _apiClient.post(
             ApiConstants.nearbySearchEndpoint,
             body: {
-              'latitude': center.latitude,
-              'longitude': center.longitude,
-              'radius': 500.0, // 1km → 500m로 더 감소하여 서버 부하 경감
+              'latitude': double.parse(center.latitude.toStringAsFixed(6)),
+              'longitude': double.parse(center.longitude.toStringAsFixed(6)),
+              'radius': 500, // double → int로 변경
             },
           ).timeout(const Duration(seconds: 30)); // 타임아웃 15초 → 30초로 증가
           break; // 성공하면 루프 탈출
@@ -330,9 +330,9 @@ class MapViewModel extends ChangeNotifier {
             ApiConstants.textSearchEndpoint,
             body: {
               'query': query,
-              'latitude': center.latitude,
-              'longitude': center.longitude,
-              'radius': 5000.0,
+              'latitude': double.parse(center.latitude.toStringAsFixed(6)),
+              'longitude': double.parse(center.longitude.toStringAsFixed(6)),
+              'radius': 5000, // double → int로 변경
             },
           ).timeout(const Duration(seconds: 30)); // 타임아웃 15초 → 30초로 증가
           break; // 성공하면 루프 탈출

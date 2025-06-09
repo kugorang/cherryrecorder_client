@@ -208,7 +208,7 @@ class _MapScreenState extends State<MapScreen> {
         ),
         // 새로고침 버튼 추가
         Positioned(
-          bottom: 24,
+          top: 72, // GPS 버튼(top: 16) 바로 아래에 위치하도록 조정
           right: 16,
           child: FloatingActionButton(
             mini: true,

@@ -17,10 +17,23 @@ class PlaceSummary {
   });
 
   factory PlaceSummary.fromJson(Map<String, dynamic> json) {
-    // 위치 정보 파싱
-    final locationData = json['location'] as Map<String, dynamic>? ?? {};
-    final lat = locationData['latitude'] as double? ?? 0.0;
-    final lng = locationData['longitude'] as double? ?? 0.0;
+    // 위치 정보 파싱 (새 형식과 기존 형식 모두 지원)
+    double lat = 0.0;
+    double lng = 0.0;
+
+    // 새 형식 (loc.lat, loc.lng) 먼저 확인
+    if (json.containsKey('loc') && json['loc'] is Map<String, dynamic>) {
+      final locData = json['loc'] as Map<String, dynamic>;
+      lat = (locData['lat'] as num?)?.toDouble() ?? 0.0;
+      lng = (locData['lng'] as num?)?.toDouble() ?? 0.0;
+    }
+    // 기존 형식 (location.latitude, location.longitude) 확인
+    else if (json.containsKey('location') &&
+        json['location'] is Map<String, dynamic>) {
+      final locationData = json['location'] as Map<String, dynamic>;
+      lat = (locationData['latitude'] as num?)?.toDouble() ?? 0.0;
+      lng = (locationData['longitude'] as num?)?.toDouble() ?? 0.0;
+    }
 
     // 사진 정보 파싱
     List<String> photos = [];
@@ -41,11 +54,11 @@ class PlaceSummary {
     String name = '이름 없음';
     String vicinity = '주소 정보 없음';
 
-    // Place ID 파싱 (서버: placeId, Google: id)
-    if (json.containsKey('placeId')) {
-      placeId = json['placeId'] as String? ?? '';
-    } else if (json.containsKey('id')) {
+    // Place ID 파싱 (새 형식: id, 서버: placeId, Google: id)
+    if (json.containsKey('id')) {
       placeId = json['id'] as String? ?? '';
+    } else if (json.containsKey('placeId')) {
+      placeId = json['placeId'] as String? ?? '';
     }
 
     // 장소 이름 파싱 (서버: name, Google: displayName.text)
@@ -57,8 +70,10 @@ class PlaceSummary {
       name = json['displayName']['text'] as String;
     }
 
-    // 주소 파싱 (서버: vicinity, Google: formattedAddress)
-    if (json.containsKey('vicinity') && json['vicinity'] != null) {
+    // 주소 파싱 (새 형식: addr, 서버: vicinity, Google: formattedAddress)
+    if (json.containsKey('addr') && json['addr'] != null) {
+      vicinity = json['addr'] as String;
+    } else if (json.containsKey('vicinity') && json['vicinity'] != null) {
       vicinity = json['vicinity'] as String;
     } else if (json.containsKey('formattedAddress') &&
         json['formattedAddress'] != null) {

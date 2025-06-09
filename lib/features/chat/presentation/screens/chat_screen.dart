@@ -4,6 +4,7 @@ import 'dart:io' show Platform; // Platform import
 import 'package:cherryrecorder_client/core/utils/dialog_utils.dart';
 import 'package:flutter/foundation.dart'; // kIsWeb, kDebugMode import
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // RawKeyboardListener 사용을 위해 추가
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 
@@ -23,6 +24,7 @@ class _ChatScreenState extends State<ChatScreen> {
   late final ChatViewModel _chatViewModel;
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  final _messageFocusNode = FocusNode(); // 메시지 입력창의 포커스 관리
   final _logger = Logger(); // Logger 인스턴스 추가
 
   bool _hasShownNicknameDialog = false; // 닉네임 다이얼로그 표시 여부
@@ -114,6 +116,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatViewModel.removeListener(_checkConnectionStatus);
     _messageController.dispose();
     _scrollController.dispose();
+    _messageFocusNode.dispose(); // FocusNode dispose 추가
     super.dispose();
   }
 
@@ -200,9 +203,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// 입력된 텍스트 메시지를 서버로 전송한다.
   void _sendMessage() {
-    if (_messageController.text.isNotEmpty) {
-      _chatViewModel.sendMessage(_messageController.text);
+    final message = _messageController.text.trim();
+    if (message.isNotEmpty) {
+      _chatViewModel.sendMessage(message);
       _messageController.clear();
+      // 메시지 전송 후에도 입력창에 포커스를 유지합니다.
+      _messageFocusNode.requestFocus();
     }
   }
 
@@ -247,120 +253,92 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildConnectionStatusBanner(),
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(8.0),
-              itemCount: chatViewModel.messages.length,
-              itemBuilder: (context, index) {
-                final message = chatViewModel.messages[index];
-                return ChatMessageWidget(
-                  message: message,
-                );
-              },
-            ),
-          ),
-          if (chatViewModel.connectionStatus == ChatConnectionStatus.connecting)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: CircularProgressIndicator(),
-            ),
-          _buildMessageInputArea(),
-        ],
-      ),
+      body: _buildBody(chatViewModel),
     );
   }
 
-  /// 연결 상태를 표시하는 배너 위젯 빌드.
-  Widget _buildConnectionStatusBanner() {
-    final chatViewModel = context.watch<ChatViewModel>();
-
-    if (chatViewModel.connectionStatus == ChatConnectionStatus.connected) {
-      return const SizedBox.shrink();
-    }
-
-    Color backgroundColor;
-    String message;
-    IconData icon;
-
+  Widget _buildBody(ChatViewModel chatViewModel) {
     switch (chatViewModel.connectionStatus) {
-      case ChatConnectionStatus.connecting:
-        backgroundColor = Colors.orange.shade100;
-        message = '서버에 연결 중...';
-        icon = Icons.sync;
-        break;
       case ChatConnectionStatus.disconnected:
-        backgroundColor = Colors.grey.shade200;
-        message = '연결되지 않음';
-        icon = Icons.wifi_off;
-        break;
-      case ChatConnectionStatus.error:
-        backgroundColor = Colors.red.shade100;
-        message = chatViewModel.errorMessage ?? '연결 오류';
-        icon = Icons.error_outline;
-        break;
-      default:
-        return const SizedBox.shrink();
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      color: backgroundColor,
-      child: Row(
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(fontSize: 14),
-            ),
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('서버와 연결이 끊겼습니다.'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _tryConnect,
+                child: const Text('재연결'),
+              ),
+            ],
           ),
-          if (chatViewModel.connectionStatus != ChatConnectionStatus.connecting)
-            TextButton(
-              onPressed: _tryConnect, // 재연결 시도
-              child: const Text('재연결'),
+        );
+      case ChatConnectionStatus.connecting:
+        return const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('서버에 연결 중입니다...'),
+            ],
+          ),
+        );
+      case ChatConnectionStatus.connected:
+        return Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(8.0),
+                itemCount: chatViewModel.messages.length,
+                itemBuilder: (context, index) {
+                  final message = chatViewModel.messages[index];
+                  return ChatMessageWidget(message: message);
+                },
+              ),
             ),
-        ],
-      ),
-    );
+            const Divider(height: 1.0),
+            _buildInputArea(),
+          ],
+        );
+      default:
+        return const Center(child: Text('알 수 없는 오류가 발생했습니다.'));
+    }
   }
 
-  /// 하단 메시지 입력 영역 위젯 빌드.
-  Widget _buildMessageInputArea() {
-    final chatViewModel = context.watch<ChatViewModel>();
-
+  /// 메시지 입력 및 전송 버튼이 있는 하단 영역을 빌드합니다.
+  Widget _buildInputArea() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor),
+      color: Theme.of(context).cardColor,
       child: SafeArea(
         child: Row(
           children: [
             Expanded(
               child: TextField(
                 controller: _messageController,
-                decoration: const InputDecoration.collapsed(
+                focusNode: _messageFocusNode, // FocusNode 연결
+                maxLines: 1, // 한 줄 입력만 허용
+                textInputAction: TextInputAction.send, // 키보드 액션을 '전송'으로 설정
+                decoration: const InputDecoration(
                   hintText: '메시지 입력...',
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(20.0)),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
-                maxLines: null,
+                onSubmitted: (value) {
+                  _sendMessage(); // 엔터 키를 누르면 메시지 전송
+                },
               ),
             ),
+            const SizedBox(width: 8.0),
             IconButton(
               icon: const Icon(Icons.send),
-              onPressed: chatViewModel.connectionStatus ==
-                      ChatConnectionStatus.connected
-                  ? _sendMessage
-                  : null,
-              color: chatViewModel.connectionStatus ==
-                      ChatConnectionStatus.connected
-                  ? Theme.of(context).primaryColor
-                  : Colors.grey,
+              onPressed: _sendMessage,
+              tooltip: '메시지 전송',
             ),
           ],
         ),
