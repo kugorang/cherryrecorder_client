@@ -82,9 +82,9 @@ CherryRecorder는 위치 기반으로 개인의 혜택 정보를 기록하고 �
 | 변수명 | 설명 | 예시 |
 |--------|------|------|
 | `APP_ENV` | 실행 환경 | `dev` 또는 `prod` |
-| `API_BASE_URL` | API 서버 URL (통합) | `https://cherryrecorder.kugora.ng:58080` |
-| `CHAT_SERVER_IP` | 채팅 서버 호스트 | `cherryrecorder.kugora.ng` |
-| `CHAT_SERVER_PORT` | 채팅 서버 포트 | `33335` |
+| `API_BASE_URL` | API 서버 URL (통합) | `https://api.example.com` |
+| `CHAT_SERVER_IP` | 채팅 서버 호스트 | `api.example.com` |
+| `CHAT_SERVER_PORT` | 채팅 서버 포트 | `PORT_NUMBER` |
 | `USE_WSS` | 보안 WebSocket 사용 여부 | `true` (프로덕션) |
 | `WEB_MAPS_API_KEY` | 웹용 Google Maps API 키 | `AIza...` |
 
@@ -117,9 +117,9 @@ flutter run --flavor dev \
 ```bash
 flutter build appbundle --flavor prod \
   --dart-define=APP_ENV=prod \
-  --dart-define=API_BASE_URL=https://cherryrecorder.kugora.ng:58080 \
-  --dart-define=CHAT_SERVER_IP=cherryrecorder.kugora.ng \
-  --dart-define=CHAT_SERVER_PORT=33335 \
+  --dart-define=API_BASE_URL=https://api.example.com \
+  --dart-define=CHAT_SERVER_IP=api.example.com \
+  --dart-define=CHAT_SERVER_PORT=PORT_NUMBER \
   --dart-define=USE_WSS=true
 ```
 
@@ -204,6 +204,18 @@ flutter pub run build_runner build --delete-conflicting-outputs
 1. **테스트 자동화**: 모든 PR에 대해 자동 테스트 실행
 2. **코드 품질 검사**: Dart 코드 스타일 및 정적 분석
 3. **자동 빌드**: main 브랜치 푸시 시 AAB 파일 생성
+
+**웹 빌드 (GitHub Pages용)**
+```bash
+flutter build web --release \
+  --base-href /your-repo-name/ \
+  --dart-define=APP_ENV=prod \
+  --dart-define=WEB_MAPS_API_KEY=YOUR_KEY \
+  --dart-define=API_BASE_URL=https://api.example.com \
+  --dart-define=CHAT_SERVER_IP=api.example.com \
+  --dart-define=CHAT_SERVER_PORT=PORT_NUMBER \
+  --dart-define=USE_WSS=true
+```
 
 ## 🤝 기여하기
 
