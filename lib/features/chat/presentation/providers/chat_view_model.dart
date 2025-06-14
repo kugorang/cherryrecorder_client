@@ -56,7 +56,8 @@ class ChatViewModel extends ChangeNotifier {
     try {
       // WebSocket 연결 (WS 또는 WSS)
       final protocol = useSecure ? 'wss' : 'ws';
-      final wsUrl = Uri.parse('$protocol://$host:$port');
+      final wsPath = '/ws'; // nginx 경로 추가
+      final wsUrl = Uri.parse('$protocol://$host:$port$wsPath');
 
       _logger.i('WebSocket URL: $wsUrl');
       _logger.i('Protocol: $protocol, Host: $host, Port: $port');

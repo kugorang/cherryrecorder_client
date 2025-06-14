@@ -21,8 +21,6 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            # 공통 경로 목록에 대한 앵커 정의
-            # 이 키(_common_paths_def)는 필터 그룹 출력을 위해 사용되지 않음
             _common_paths_def: &common_paths_list 
               - 'lib/**'
               - 'web/**'
@@ -30,19 +28,15 @@ jobs:
               - 'pubspec.yaml'
               - 'pubspec.lock'
 
-            # gh_pages 필터 그룹
-            # 이 그룹의 변경 여부는 steps.filter.outputs.gh_pages 로 출력됨
             gh_pages: 
-              - *common_paths_list # 공통 경로 목록 참조
-              - '.github/workflows/ci.yml' # 이 워크플로우 파일
+              - *common_paths_list
+              - '.github/workflows/ci.yml'
 
-            # docker 필터 그룹
-            # 이 그룹의 변경 여부는 steps.filter.outputs.docker 로 출력됨
             docker: 
-              - *common_paths_list # 공통 경로 목록 참조
+              - *common_paths_list
               - 'Dockerfile'
               - '.docker/**'
-              - '.github/workflows/ci.yml' # 이 워크플로우 파일
+              - '.github/workflows/ci.yml'
 
   deploy_gh_pages:
     needs: check_paths
@@ -71,11 +65,8 @@ jobs:
       - name: Build Web for GH Pages
         run: |
           flutter build web --release --base-href "/cherryrecorder_client/" \
-          --dart-define=APP_ENV=${{ vars.APP_ENV || 'prod' }} \
-          --dart-define=WEB_MAPS_API_KEY=${{ secrets.GH_PAGES_WEB_MAPS_API_KEY }} \
-          --dart-define=WEB_API_BASE_URL=${{ vars.WEB_API_BASE_URL }} \
-          --dart-define=CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }} \
-          --dart-define=USE_WSS=true
+          --dart-define=APP_ENV=prod \
+          --dart-define=WEB_MAPS_API_KEY=${{ secrets.WEB_MAPS_API_KEY }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -130,13 +121,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           secrets: |
-            "web_maps_api_key=${{ secrets.GH_PAGES_WEB_MAPS_API_KEY }}"
+            "web_maps_api_key=${{ secrets.WEB_MAPS_API_KEY }}"
           build-args: |
-            APP_ENV=${{ vars.APP_ENV || 'prod' }}
-            WEB_API_BASE_URL=${{ vars.WEB_API_BASE_URL }}
-            CHAT_SERVER_IP=${{ vars.CHAT_SERVER_IP }}
-            BASE_HREF=${{ vars.DOCKER_BASE_HREF || '/cherryrecorder_client/' }}
-            USE_WSS=true
+            APP_ENV=prod
+            BASE_HREF=/
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
@@ -149,4 +137,4 @@ jobs:
           echo ""
           echo "Pull commands:"
           echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:latest"
-          echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:sha-${GITHUB_SHA::7}" 
+          echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:sha-${GITHUB_SHA::7}"
