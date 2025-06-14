@@ -38,7 +38,7 @@ class GoogleMapsService implements GoogleMapsServiceInterface {
   ///
   /// `--dart-define`을 통해 외부에서 주입받으며, 기본값은 개발 환경을 위한 localhost 주소입니다.
   final String _serverBaseUrl = const String.fromEnvironment(
-    'API_BASE_URL',
+    'WEB_API_BASE_URL',
     defaultValue: 'http://localhost:8080',
   );
 
