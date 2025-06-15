@@ -1,0 +1,35 @@
+name: Reusable - Deploy to GitHub Pages
+
+on:
+  workflow_call:
+
+jobs:
+  deploy_job:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download web build artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: web-build
+          path: build/web
+
+      - name: Fix base href for GitHub Pages
+        run: |
+          cd build/web
+          sed -i 's|<base href="/">|<base href="/cherryrecorder_client/">|g' index.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

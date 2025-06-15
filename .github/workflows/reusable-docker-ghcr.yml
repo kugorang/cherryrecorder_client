@@ -1,0 +1,89 @@
+name: Reusable - Docker Build & Push GHCR
+
+on:
+  workflow_call:
+    inputs:
+      server_domain:
+        required: true
+        type: string
+    secrets:
+      WEB_MAPS_API_KEY:
+        required: true
+    outputs:
+      image_digest:
+        value: ${{ jobs.docker_job.outputs.image_digest }}
+      image_tag_sha:
+        value: ${{ jobs.docker_job.outputs.image_tag_sha }}
+      ghcr_repository:
+        value: ${{ jobs.docker_job.outputs.ghcr_repository }}
+
+jobs:
+  docker_job:
+    name: Build & Push to GHCR
+    runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.build_and_push.outputs.digest }}
+      image_tag_sha: ${{ steps.tag-image.outputs.tag }}
+      ghcr_repository: ${{ steps.repo-lowercase.outputs.repository }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download web build artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: web-build
+          path: build/web
+
+      - name: Set Image Tag
+        id: tag-image
+        run: echo "tag=sha-${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Convert repository name to lowercase
+        id: repo-lowercase
+        run: |
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "repository=${REPO_LC}" >> $GITHUB_OUTPUT
+
+      - name: Get source date epoch
+        id: source-date
+        run: |
+          EPOCH=$(date +%s)
+          echo "epoch=${EPOCH}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push to GHCR
+        id: build_and_push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.repo-lowercase.outputs.repository }}:${{ steps.tag-image.outputs.tag }}
+            ghcr.io/${{ steps.repo-lowercase.outputs.repository }}:latest
+          build-args: |
+            APP_ENV=prod
+            BASE_HREF=/
+            WEB_MAPS_API_KEY=${{ secrets.WEB_MAPS_API_KEY }}
+            WEB_API_BASE_URL=https://${{ inputs.server_domain }}/api
+            WS_URL=wss://${{ inputs.server_domain }}/ws
+            SOURCE_DATE_EPOCH=${{ steps.source-date.outputs.epoch }}
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ steps.repo-lowercase.outputs.repository }}:buildcache
+            type=gha
+          cache-to: |
+            type=registry,ref=ghcr.io/${{ steps.repo-lowercase.outputs.repository }}:buildcache,mode=max
+            type=gha,mode=max
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

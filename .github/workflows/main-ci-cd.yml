@@ -1,0 +1,61 @@
+name: CI/CD - CherryRecorder Client
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # 1. Flutter Web Build
+  build_web:
+    name: Build Flutter Web
+    uses: ./.github/workflows/reusable-build-web.yml
+    secrets:
+      WEB_MAPS_API_KEY: ${{ secrets.WEB_MAPS_API_KEY }}
+    with:
+      server_domain: ${{ vars.SERVER_DOMAIN }}
+
+  # 2. Deploy to GitHub Pages (parallel with Docker)
+  deploy_gh_pages:
+    name: Deploy to GitHub Pages
+    needs: build_web
+    if: |
+      github.event_name != 'pull_request' &&
+      needs.build_web.outputs.source_changed == 'true'
+    uses: ./.github/workflows/reusable-deploy-gh-pages.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+  # 3. Build Docker Image & Push GHCR (parallel with Pages)
+  docker_ghcr:
+    name: Docker Build & Push GHCR
+    needs: build_web
+    if: needs.build_web.outputs.source_changed == 'true'
+    uses: ./.github/workflows/reusable-docker-ghcr.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      server_domain: ${{ vars.SERVER_DOMAIN }}
+    secrets:
+      WEB_MAPS_API_KEY: ${{ secrets.WEB_MAPS_API_KEY }}
+
+  # 4. Push to Docker Hub
+  docker_hub:
+    name: Push to Docker Hub
+    needs: docker_ghcr
+    if: |
+      github.event_name != 'pull_request' &&
+      needs.docker_ghcr.result == 'success'
+    uses: ./.github/workflows/reusable-docker-hub.yml
+    with:
+      image_digest: ${{ needs.docker_ghcr.outputs.image_digest }}
+      image_tag_sha: ${{ needs.docker_ghcr.outputs.image_tag_sha }}
+      ghcr_repository: ${{ needs.docker_ghcr.outputs.ghcr_repository }}
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

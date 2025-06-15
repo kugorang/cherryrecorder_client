@@ -1,0 +1,86 @@
+name: Reusable - Build Flutter Web
+
+on:
+  workflow_call:
+    inputs:
+      server_domain:
+        required: true
+        type: string
+    secrets:
+      WEB_MAPS_API_KEY:
+        required: true
+    outputs:
+      source_changed:
+        value: ${{ jobs.build_job.outputs.source_changed }}
+      source_hash:
+        value: ${{ jobs.build_job.outputs.source_hash }}
+
+jobs:
+  build_job:
+    name: Build Flutter Web
+    runs-on: ubuntu-latest
+    outputs:
+      source_changed: ${{ steps.check-changed.outputs.changed }}
+      source_hash: ${{ steps.build-id.outputs.source_hash }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate Build ID from source
+        id: build-id
+        run: |
+          SOURCE_HASH=$(find . -type f \( -name "*.dart" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" -o -name "*.html" \) -not -path "./.git/*" -not -path "./build/*" | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
+          echo "source_hash=${SOURCE_HASH}" >> $GITHUB_OUTPUT
+
+      - name: Cache last build hash
+        uses: actions/cache@v3
+        id: cache-build
+        with:
+          path: .last_web_build_hash
+          key: web-build-${{ steps.build-id.outputs.source_hash }}
+
+      - name: Check if source changed
+        id: check-changed
+        run: |
+          if [ -f .last_web_build_hash ]; then
+            PREV_HASH=$(cat .last_web_build_hash)
+            if [ "$PREV_HASH" = "${{ steps.build-id.outputs.source_hash }}" ]; then
+              echo "Source unchanged. Skipping build."
+              echo "changed=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+          echo "Source changed. Build required."
+          echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Set up Flutter
+        if: steps.check-changed.outputs.changed == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.2'
+          channel: 'stable'
+
+      - name: Get dependencies
+        if: steps.check-changed.outputs.changed == 'true'
+        run: flutter pub get
+
+      - name: Build Web
+        if: steps.check-changed.outputs.changed == 'true'
+        run: |
+          flutter build web --release \
+            --dart-define=APP_ENV=prod \
+            --dart-define=WEB_MAPS_API_KEY=${{ secrets.WEB_MAPS_API_KEY }} \
+            --dart-define=WEB_API_BASE_URL=https://${{ inputs.server_domain }}/api \
+            --dart-define=WS_URL=wss://${{ inputs.server_domain }}/ws
+
+      - name: Upload web build artifact
+        if: steps.check-changed.outputs.changed == 'true'
+        uses: actions/upload-artifact@v3
+        with:
+          name: web-build
+          path: build/web
+          retention-days: 1
+
+      - name: Save build hash
+        if: steps.check-changed.outputs.changed == 'true'
+        run: echo "${{ steps.build-id.outputs.source_hash }}" > .last_web_build_hash
