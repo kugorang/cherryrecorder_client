@@ -53,38 +53,182 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-  build_and_push_docker:
+  build_and_push_ghcr:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
+    outputs:
+      image_digest: ${{ steps.build_and_push_ghcr.outputs.digest }}
+      image_tag_sha: ${{ steps.tag-image.outputs.tag }}
+      source_changed: ${{ steps.check-changed.outputs.changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set Image Tag (SHA)
+        id: tag-image
+        run: echo "tag=sha-${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Generate Build ID from source
+        id: build-id
+        run: |
+          # 소스 코드 해시 생성 (.git, build 디렉토리 제외)
+          SOURCE_HASH=$(find . -type f -not -path "./.git/*" -not -path "./build/*" | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
+          echo "Generated source hash: $SOURCE_HASH"
+          echo "source_hash=${SOURCE_HASH}" >> $GITHUB_OUTPUT
+
+      - name: Cache last build hash
+        uses: actions/cache@v3
+        id: cache-last-build
+        with:
+          path: .last_build_hash
+          key: buildhash-${{ steps.build-id.outputs.source_hash }}
+
+      - name: Check if source changed
+        id: check-changed
+        run: |
+          if [ -f .last_build_hash ]; then
+            PREV_HASH=$(cat .last_build_hash)
+            CUR_HASH="${{ steps.build-id.outputs.source_hash }}"
+            if [ "$PREV_HASH" = "$CUR_HASH" ]; then
+              echo "Source code unchanged. Skipping build."
+              echo "changed=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+          echo "Source code changed. Build required."
+          echo "changed=true" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
+        if: steps.check-changed.outputs.changed == 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
-        if: github.event_name != 'pull_request'
+      - name: Login to GitHub Container Registry
+        if: steps.check-changed.outputs.changed == 'true'
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push to GHCR
+        if: steps.check-changed.outputs.changed == 'true'
+        id: build_and_push_ghcr
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:${{ steps.tag-image.outputs.tag }}
+            ghcr.io/${{ github.repository }}:latest
           build-args: |
             APP_ENV=prod
             BASE_HREF=/
             WEB_MAPS_API_KEY=${{ secrets.WEB_MAPS_API_KEY }}
             WEB_API_BASE_URL=https://${{ vars.SERVER_DOMAIN }}/api
             WS_URL=wss://${{ vars.SERVER_DOMAIN }}/ws
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            BUILD_ID=${{ steps.build-id.outputs.source_hash }}
+            SOURCE_DATE_EPOCH=${{ github.event.head_commit.timestamp }}
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+            type=gha
+          cache-to: |
+            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
+            type=gha,mode=max
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            build.id=${{ steps.build-id.outputs.source_hash }}
+
+      - name: Save build hash
+        if: steps.check-changed.outputs.changed == 'true'
+        run: echo "${{ steps.build-id.outputs.source_hash }}" > .last_build_hash
+
+  push_to_dockerhub:
+    needs: build_and_push_ghcr
+    if: github.event_name != 'pull_request' && needs.build_and_push_ghcr.outputs.source_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install skopeo and jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends skopeo jq && sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Get Docker Hub image manifest digest
+        id: get-latest-digest-dh
+        run: |
+          DH_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client:latest"
+          echo "Checking manifest digest for Docker Hub image: $DH_IMAGE"
+          
+          LATEST_DIGEST=$(skopeo inspect --raw docker://$DH_IMAGE 2>/dev/null | jq -r '.digest // empty' || \
+                         skopeo inspect --format '{{.Digest}}' docker://$DH_IMAGE 2>/dev/null || echo "")
+          
+          if [ -n "$LATEST_DIGEST" ]; then
+            echo "Current :latest manifest digest in Docker Hub: $LATEST_DIGEST"
+          else
+            echo "Could not retrieve digest (image might not exist)."
+          fi
+          
+          echo "latest_digest=$LATEST_DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Check digests and set push flag
+        id: check-push-dh
+        run: |
+          BUILT_DIGEST="${{ needs.build_and_push_ghcr.outputs.image_digest }}"
+          LATEST_DIGEST="${{ steps.get-latest-digest-dh.outputs.latest_digest }}"
+          
+          echo "=== Digest Comparison ==="
+          echo "Built Digest  : [${BUILT_DIGEST}]"
+          echo "Latest Digest : [${LATEST_DIGEST}]"
+          
+          if [ -n "$BUILT_DIGEST" ] && ([ "$BUILT_DIGEST" != "$LATEST_DIGEST" ] || [ -z "$LATEST_DIGEST" ]); then
+            echo "Digests differ or latest is empty. Push required."
+            echo "push_required=true" >> $GITHUB_OUTPUT
+          else
+            echo "Digests match. Push not required."
+            echo "push_required=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Copy multi-arch image to Docker Hub
+        if: steps.check-push-dh.outputs.push_required == 'true'
+        run: |
+          DH_IMAGE_BASE="${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client"
+          GHCR_IMAGE="ghcr.io/${{ github.repository }}"
+          TAG_SHA="${{ needs.build_and_push_ghcr.outputs.image_tag_sha }}"
+          
+          echo "Copying multi-arch manifest from GHCR to Docker Hub..."
+          
+          # SHA 태그 복사
+          docker buildx imagetools create \
+            --tag $DH_IMAGE_BASE:$TAG_SHA \
+            $GHCR_IMAGE:$TAG_SHA
+          
+          # latest 태그 복사
+          docker buildx imagetools create \
+            --tag $DH_IMAGE_BASE:latest \
+            $GHCR_IMAGE:latest
+          
+          # 아키텍처 확인
+          echo "Verifying multi-arch support:"
+          docker buildx imagetools inspect $DH_IMAGE_BASE:latest
+
+      - name: Push skipped
+        if: steps.check-push-dh.outputs.push_required == 'false'
+        run: echo "Docker Hub push skipped: Image digest matches existing :latest tag."
