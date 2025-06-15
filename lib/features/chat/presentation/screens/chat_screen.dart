@@ -49,7 +49,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // 환경 변수 파싱 로직을 initState에서 한 번만 수행
     if (_wsUrlFromEnv.isNotEmpty) {
       // WS_URL에서 프로토콜, 호스트, 포트 추출
-      final uri = Uri.parse(_wsUrlFromEnv.replaceAll('/ws', ''));
+      final uri = Uri.parse(_wsUrlFromEnv);
       _chatServerIp = uri.host;
       _chatServerPort = uri.port;
       _useSecureWebSocket = uri.scheme == 'wss';

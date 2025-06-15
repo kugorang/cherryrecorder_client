@@ -56,15 +56,24 @@ class ChatViewModel extends ChangeNotifier {
     try {
       // WebSocket 연결 (WS 또는 WSS)
       final protocol = useSecure ? 'wss' : 'ws';
-      final wsPath = '/ws'; // nginx 경로 추가
-      final wsUrl = Uri.parse('$protocol://$host:$port$wsPath');
+      final wsPath = '/ws'; // nginx 경로
+      
+      // 포트 번호가 기본 포트인 경우 생략
+      String wsUrl;
+      if ((useSecure && port == 443) || (!useSecure && port == 80)) {
+        wsUrl = '$protocol://$host$wsPath';
+      } else {
+        wsUrl = '$protocol://$host:$port$wsPath';
+      }
+      
+      final wsUri = Uri.parse(wsUrl);
 
       _logger.i('WebSocket URL: $wsUrl');
       _logger.i('Protocol: $protocol, Host: $host, Port: $port');
 
       // 서브프로토콜 없이 연결 (모든 환경에서 동일하게)
       _logger.i('Connecting to server without subprotocol');
-      _channel = WebSocketChannel.connect(wsUrl);
+      _channel = WebSocketChannel.connect(wsUri);
 
       _logger.i('WebSocket connecting to $wsUrl');
 
