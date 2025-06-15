@@ -1,5 +1,3 @@
-name: Reusable - Push to Docker Hub
-
 on:
   workflow_call:
     inputs:
