@@ -59,11 +59,28 @@ ANDROID_MAPS_API_KEY=your_android_maps_api_key
 # 웹 환경 설정
 WEB_API_BASE_URL=https://example.com/api
 WEB_MAPS_API_KEY=your_prod_maps_api_key
+WS_URL=wss://example.com/ws
 
 # 안드로이드 환경 설정
 ANDROID_API_BASE_URL=https://example.com/api
 ANDROID_MAPS_API_KEY=your_android_maps_api_key
 ```
+
+## 🔗 API 연동
+
+### 서버 API 호출
+클라이언트는 다음 서버 엔드포인트를 사용합니다:
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/health` | 서버 상태 확인 |
+| POST | `/places/nearby` | 주변 장소 검색 |
+| POST | `/places/search` | 텍스트 기반 장소 검색 |
+| GET | `/places/details/{placeId}` | 장소 상세정보 |
+
+### WebSocket 연동
+- 연결 URL: `wss://example.com/ws` (프로덕션)
+- 프로토콜: JSON 메시지 기반
 
 ## 🏗️ 프로젝트 구조
 
@@ -104,9 +121,15 @@ lib/
 ### nginx 리버스 프록시
 클라이언트 Docker 이미지는 nginx를 포함하여 API와 WebSocket 요청을 프록시합니다:
 
-- `/api` → 서버의 8080 포트
-- `/ws` → 서버의 33334 포트
-- `/` → Flutter 웹 앱
+```nginx
+location /api/ {
+    proxy_pass http://cherryrecorder-server:8080/;
+}
+
+location /ws {
+    proxy_pass http://cherryrecorder-server:33334;
+}
+```
 
 ### Docker Compose 사용
 
@@ -125,7 +148,9 @@ services:
 
 ### 웹
 ```bash
-flutter build web --release --dart-define-from-file=.env.prod
+flutter build web --release \
+  --dart-define-from-file=.env.prod \
+  --base-href "/cherryrecorder_client/"
 ```
 
 ### Android
@@ -154,6 +179,15 @@ flutter build ios --release --dart-define-from-file=.env.prod
 - **Web**: 환경 변수로 주입
 - **Android**: `android/app/src/main/AndroidManifest.xml`
 - **iOS**: `ios/Runner/AppDelegate.swift`
+
+## 📦 주요 의존성
+
+- `google_maps_flutter`: 지도 표시
+- `http`: HTTP 통신
+- `web_socket_channel`: WebSocket 통신
+- `flutter_secure_storage`: 안전한 데이터 저장
+- `logger`: 로깅
+- `uuid`: 고유 ID 생성
 
 ## 📄 라이센스
 
