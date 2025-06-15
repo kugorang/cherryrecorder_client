@@ -243,5 +243,7 @@ jobs:
 
       - name: Push skipped
         if: steps.check-push-dh.outputs.push_required == 'false'
-        run: echo "Docker Hub push skipped: Image digest matches existing :latest tag."
+        run: |
+          echo "Docker Hub push skipped: Image digest matches existing :latest tag."
+
 
