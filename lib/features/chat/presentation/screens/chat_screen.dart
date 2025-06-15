@@ -30,28 +30,16 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _hasShownNicknameDialog = false; // 닉네임 다이얼로그 표시 여부
 
   // --- 서버 주소 및 포트 설정 ---
-  static const String _chatServerUrlFromEnv = String.fromEnvironment(
-    'CHAT_SERVER_IP', // 변수명이 IP이지만 URL 전체를 받을 수 있음
+  static const String _wsUrlFromEnv = String.fromEnvironment(
+    'WS_URL',
     defaultValue: '',
   );
-
-  static const int _chatServerPortFromEnv = int.fromEnvironment(
-    'CHAT_SERVER_PORT',
-    defaultValue: 0,
-  );
-
-  static const bool _useSecureWebSocket = bool.fromEnvironment(
-    'USE_WSS',
-    defaultValue: false,
-  );
-
-  // WSS 사용 여부에 따라 기본 포트를 다르게 설정
-  static const int _defaultChatServerPort = _useSecureWebSocket ? 33335 : 33334;
   // ------------------------------------------------
 
   // State 멤버 변수로 IP와 포트를 저장하여 위젯 트리 전체에서 접근 가능하도록 함
   late final String _chatServerIp;
   late final int _chatServerPort;
+  late final bool _useSecureWebSocket;
 
   @override
   void initState() {
@@ -59,26 +47,15 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatViewModel = context.read<ChatViewModel>();
 
     // 환경 변수 파싱 로직을 initState에서 한 번만 수행
-    // 환경 변수(_chatServerUrlFromEnv)가 제공되었는지 확인
-    if (_chatServerUrlFromEnv.isNotEmpty) {
-      // URL에서 프로토콜(http, https)을 제거
-      final urlWithoutProtocol = _chatServerUrlFromEnv
-          .replaceAll('https://', '')
-          .replaceAll('http://', '');
-
-      // ':'를 기준으로 호스트와 포트를 분리
-      final parts = urlWithoutProtocol.split(':');
-      _chatServerIp = parts.first; // 첫 번째 부분은 IP 또는 호스트
-
-      if (parts.length > 1) {
-        // 포트 번호가 있으면 파싱해서 사용
-        _chatServerPort = int.tryParse(parts[1]) ?? _defaultChatServerPort;
-      } else {
-        // 포트 번호가 없으면 환경 변수에서 전달된 포트 또는 기본 포트 사용
-        _chatServerPort = _chatServerPortFromEnv != 0
-            ? _chatServerPortFromEnv
-            : _defaultChatServerPort;
-      }
+    if (_wsUrlFromEnv.isNotEmpty) {
+      // WS_URL에서 프로토콜, 호스트, 포트 추출
+      final uri = Uri.parse(_wsUrlFromEnv.replaceAll('/ws', ''));
+      _chatServerIp = uri.host;
+      _chatServerPort = uri.port;
+      _useSecureWebSocket = uri.scheme == 'wss';
+      
+      _logger.i('WebSocket URL from env: $_wsUrlFromEnv');
+      _logger.i('Parsed - Host: $_chatServerIp, Port: $_chatServerPort, Secure: $_useSecureWebSocket');
     } else {
       // 환경 변수가 없을 때 플랫폼별 기본값 설정
       if (kIsWeb) {
@@ -90,9 +67,9 @@ class _ChatScreenState extends State<ChatScreen> {
           _chatServerIp = 'localhost';
         }
       }
-      _chatServerPort = _chatServerPortFromEnv != 0
-          ? _chatServerPortFromEnv
-          : _defaultChatServerPort;
+      _chatServerPort = 33334;
+      _useSecureWebSocket = false;
+      _logger.w('No WS_URL env, using defaults: $_chatServerIp:$_chatServerPort');
     }
 
     _logger.i(
