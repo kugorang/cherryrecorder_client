@@ -24,16 +24,49 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Generate Build ID from source
+        id: build-id
+        run: |
+          # 소스 코드 해시 생성 (웹 빌드 관련 파일만)
+          SOURCE_HASH=$(find . -type f \( -name "*.dart" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" -o -name "*.html" \) -not -path "./.git/*" -not -path "./build/*" | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
+          echo "Generated source hash: $SOURCE_HASH"
+          echo "source_hash=${SOURCE_HASH}" >> $GITHUB_OUTPUT
+
+      - name: Cache last gh-pages build hash
+        uses: actions/cache@v3
+        id: cache-gh-pages
+        with:
+          path: .last_gh_pages_hash
+          key: gh-pages-hash-${{ steps.build-id.outputs.source_hash }}
+
+      - name: Check if source changed
+        id: check-changed
+        run: |
+          if [ -f .last_gh_pages_hash ]; then
+            PREV_HASH=$(cat .last_gh_pages_hash)
+            CUR_HASH="${{ steps.build-id.outputs.source_hash }}"
+            if [ "$PREV_HASH" = "$CUR_HASH" ]; then
+              echo "Source code unchanged. Skipping GitHub Pages deployment."
+              echo "changed=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+          echo "Source code changed. Deployment required."
+          echo "changed=true" >> $GITHUB_OUTPUT
+
       - name: Set up Flutter
+        if: steps.check-changed.outputs.changed == 'true'
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.32.2'
           channel: 'stable'
 
       - name: Get dependencies
+        if: steps.check-changed.outputs.changed == 'true'
         run: flutter pub get
 
       - name: Build Web for GH Pages
+        if: steps.check-changed.outputs.changed == 'true'
         run: |
           flutter build web --release --base-href "/cherryrecorder_client/" \
           --dart-define=APP_ENV=prod \
@@ -42,16 +75,23 @@ jobs:
           --dart-define=WS_URL=wss://${{ vars.SERVER_DOMAIN }}/ws
 
       - name: Setup Pages
+        if: steps.check-changed.outputs.changed == 'true'
         uses: actions/configure-pages@v4
 
       - name: Upload artifact
+        if: steps.check-changed.outputs.changed == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
 
       - name: Deploy to GitHub Pages
+        if: steps.check-changed.outputs.changed == 'true'
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Save build hash
+        if: steps.check-changed.outputs.changed == 'true'
+        run: echo "${{ steps.build-id.outputs.source_hash }}" > .last_gh_pages_hash
 
   build_and_push_ghcr:
     runs-on: ubuntu-latest
@@ -118,6 +158,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get source date epoch
+        id: source-date
+        run: |
+          if [ -n "${{ github.event.head_commit.timestamp }}" ]; then
+            # Convert ISO date to Unix timestamp
+            EPOCH=$(date -d "${{ github.event.head_commit.timestamp }}" +%s)
+          else
+            # Fallback to current time
+            EPOCH=$(date +%s)
+          fi
+          echo "epoch=${EPOCH}" >> $GITHUB_OUTPUT
+
       - name: Build and push to GHCR
         if: steps.check-changed.outputs.changed == 'true'
         id: build_and_push_ghcr
@@ -136,7 +188,7 @@ jobs:
             WEB_API_BASE_URL=https://${{ vars.SERVER_DOMAIN }}/api
             WS_URL=wss://${{ vars.SERVER_DOMAIN }}/ws
             BUILD_ID=${{ steps.build-id.outputs.source_hash }}
-            SOURCE_DATE_EPOCH=${{ github.event.head_commit.timestamp }}
+            SOURCE_DATE_EPOCH=${{ steps.source-date.outputs.epoch }}
           cache-from: |
             type=registry,ref=ghcr.io/${{ steps.repo-lowercase.outputs.repository }}:buildcache
             type=gha
