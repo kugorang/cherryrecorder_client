@@ -7,7 +7,7 @@ class ApiConstants {
 
   // 엔드포인트 (상대 경로만 정의)
   static const String healthEndpoint = '/health'; // 서버 상태 확인 추가
-  static const String nearbySearchEndpoint = '/place/nearbysearch';
-  static const String textSearchEndpoint = '/place/textsearch';
-  static const String placeDetailsEndpoint = '/place/details';
+  static const String nearbySearchEndpoint = '/places/nearby';
+  static const String textSearchEndpoint = '/places/search';
+  static const String placeDetailsEndpoint = '/places/details';
 }
