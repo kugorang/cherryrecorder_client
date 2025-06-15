@@ -78,6 +78,12 @@ jobs:
           echo "Generated source hash: $SOURCE_HASH"
           echo "source_hash=${SOURCE_HASH}" >> $GITHUB_OUTPUT
 
+      - name: Convert repository name to lowercase
+        id: repo-lowercase
+        run: |
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "repository=${REPO_LC}" >> $GITHUB_OUTPUT
+
       - name: Cache last build hash
         uses: actions/cache@v3
         id: cache-last-build
@@ -121,8 +127,8 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.tag-image.outputs.tag }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ steps.repo-lowercase.outputs.repository }}:${{ steps.tag-image.outputs.tag }}
+            ghcr.io/${{ steps.repo-lowercase.outputs.repository }}:latest
           build-args: |
             APP_ENV=prod
             BASE_HREF=/
@@ -132,10 +138,10 @@ jobs:
             BUILD_ID=${{ steps.build-id.outputs.source_hash }}
             SOURCE_DATE_EPOCH=${{ github.event.head_commit.timestamp }}
           cache-from: |
-            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+            type=registry,ref=ghcr.io/${{ steps.repo-lowercase.outputs.repository }}:buildcache
             type=gha
           cache-to: |
-            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
+            type=registry,ref=ghcr.io/${{ steps.repo-lowercase.outputs.repository }}:buildcache,mode=max
             type=gha,mode=max
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
@@ -151,6 +157,12 @@ jobs:
     if: github.event_name != 'pull_request' && needs.build_and_push_ghcr.outputs.source_changed == 'true'
     runs-on: ubuntu-latest
     steps:
+      - name: Convert repository name to lowercase
+        id: repo-lowercase
+        run: |
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "repository=${REPO_LC}" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -210,7 +222,7 @@ jobs:
         if: steps.check-push-dh.outputs.push_required == 'true'
         run: |
           DH_IMAGE_BASE="${{ secrets.DOCKERHUB_USERNAME }}/cherryrecorder_client"
-          GHCR_IMAGE="ghcr.io/${{ github.repository }}"
+          GHCR_IMAGE="ghcr.io/${{ steps.repo-lowercase.outputs.repository }}"
           TAG_SHA="${{ needs.build_and_push_ghcr.outputs.image_tag_sha }}"
           
           echo "Copying multi-arch manifest from GHCR to Docker Hub..."
@@ -232,3 +244,4 @@ jobs:
       - name: Push skipped
         if: steps.check-push-dh.outputs.push_required == 'false'
         run: echo "Docker Hub push skipped: Image digest matches existing :latest tag."
+
