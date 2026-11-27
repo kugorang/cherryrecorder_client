@@ -270,7 +270,7 @@ _channel = WebSocketChannel.connect(wsUri); // Uri 타입
 ## 👤 개발자
 
 - **Kim Hyeonwoo** - [kugorang](https://github.com/kugorang)
-- 이메일: ialskdji@gmail.com
+- 이메일: hw@kugora.ng
 
 ## 🤝 기여
 
